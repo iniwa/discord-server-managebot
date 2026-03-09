@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discord Server Manager</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <svg width="24" height="24" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g clip-path="url(#clip0)">
+      <path d="M60.1045 4.8978C55.5792 2.8214 50.7265 1.2916 45.6527 0.41542C45.5603 0.39851 45.468 0.440769 45.4204 0.525289C44.7963 1.6353 44.105 3.0834 43.6209 4.2216C38.1637 3.4046 32.7345 3.4046 27.3892 4.2216C26.905 3.0581 26.1886 1.6353 25.5617 0.525289C25.5141 0.443589 25.4218 0.40133 25.3294 0.41542C20.2584 1.2888 15.4057 2.8186 10.8776 4.8978C10.8384 4.9147 10.8048 4.9429 10.7825 4.9795C1.57795 18.7309 -0.943561 32.1443 0.293408 45.3914C0.299005 45.4562 0.335386 45.5182 0.385761 45.5576C6.45866 50.0174 12.3413 52.7249 18.1147 54.5195C18.2071 54.5477 18.305 54.5139 18.3638 54.4378C19.7295 52.5728 20.9469 50.6063 21.9907 48.5383C22.0523 48.4172 21.9935 48.2735 21.8676 48.2256C19.9366 47.4931 18.0979 46.6 16.3292 45.5858C16.1893 45.5041 16.1781 45.304 16.3068 45.2082C16.679 44.9293 17.0513 44.6391 17.4067 44.3461C17.471 44.2926 17.5606 44.2813 17.6362 44.3151C29.2558 49.6202 41.8354 49.6202 53.3179 44.3151C53.3935 44.2785 53.4831 44.2898 53.5502 44.3433C53.9057 44.6363 54.2779 44.9293 54.6529 45.2082C54.7816 45.304 54.7732 45.5041 54.6333 45.5858C52.8646 46.6197 51.0259 47.4931 49.0921 48.2228C48.9662 48.2707 48.9102 48.4172 48.9718 48.5383C50.038 50.6034 51.2554 52.5699 52.5959 54.435C52.6519 54.5139 52.7526 54.5477 52.845 54.5195C58.6464 52.7249 64.529 50.0174 70.6019 45.5576C70.6551 45.5182 70.6887 45.459 70.6943 45.3942C72.1747 30.0791 68.2147 16.7757 60.1968 4.9823C60.1772 4.9429 60.1437 4.9147 60.1045 4.8978ZM23.7259 37.3253C20.2276 37.3253 17.3451 34.1136 17.3451 30.1693C17.3451 26.225 20.1717 23.0133 23.7259 23.0133C27.308 23.0133 30.1626 26.2532 30.1066 30.1693C30.1066 34.1136 27.28 37.3253 23.7259 37.3253ZM47.3178 37.3253C43.8196 37.3253 40.9371 34.1136 40.9371 30.1693C40.9371 26.225 43.7636 23.0133 47.3178 23.0133C50.9 23.0133 53.7545 26.2532 53.6986 30.1693C53.6986 34.1136 50.9 37.3253 47.3178 37.3253Z" fill="#5865F2"/>
+      </g>
+      <defs><clipPath id="clip0"><rect width="71" height="55" fill="white"/></clipPath></defs>
+    </svg>
+    <h1>Discord Server Manager</h1>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="snapshots">ロールスナップショット</button>
+    <button class="tab-btn" data-tab="reaction-roles">リアクションロール</button>
+    <button class="tab-btn" data-tab="voice-roles">VCロール</button>
+    <button class="tab-btn" data-tab="members">メンバー</button>
+    <button class="tab-btn" data-tab="leave-log">退出ログ</button>
+  </nav>
+
+  <!-- Snapshots Tab -->
+  <div class="tab-panel active" id="tab-snapshots">
+    <div class="card">
+      <div class="card-header">
+        <h2>ロールスナップショット</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="snapshot-note" placeholder="メモ (任意)" style="width:200px;" />
+          <button class="btn btn-primary" onclick="takeSnapshot()">スナップショット取得</button>
+        </div>
+      </div>
+      <div id="snapshots-list"></div>
+    </div>
+    <div class="card" id="snapshot-detail" style="display:none;">
+      <div class="card-header">
+        <h2 id="snapshot-detail-title">スナップショット詳細</h2>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('snapshot-detail').style.display='none'">閉じる</button>
+      </div>
+      <div id="snapshot-entries"></div>
+    </div>
+  </div>
+
+  <!-- Reaction Roles Tab -->
+  <div class="tab-panel" id="tab-reaction-roles">
+    <div class="card">
+      <div class="card-header"><h2>リアクションロール追加</h2></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>チャンネルID</label>
+          <input type="text" id="rr-channel" placeholder="チャンネルID" />
+        </div>
+        <div class="form-group">
+          <label>メッセージID</label>
+          <input type="text" id="rr-message" placeholder="メッセージID" />
+        </div>
+        <div class="form-group">
+          <label>絵文字</label>
+          <input type="text" id="rr-emoji" placeholder="😀 or &lt;:name:id&gt;" />
+        </div>
+        <div class="form-group">
+          <label>ロール</label>
+          <select id="rr-role"><option value="">-- ロール選択 --</option></select>
+        </div>
+        <div class="form-group">
+          <label>ラベル (任意)</label>
+          <input type="text" id="rr-label" placeholder="説明" />
+        </div>
+        <button class="btn btn-primary" onclick="addReactionRole()" style="margin-bottom:0;">追加</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom:16px;">設定一覧</h2>
+      <div id="reaction-roles-list"></div>
+    </div>
+  </div>
+
+  <!-- Voice Roles Tab -->
+  <div class="tab-panel" id="tab-voice-roles">
+    <div class="card">
+      <div class="card-header"><h2>VCロール追加</h2></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ボイスチャンネル</label>
+          <select id="vr-channel"><option value="">-- チャンネル選択 --</option></select>
+        </div>
+        <div class="form-group">
+          <label>付与するロール</label>
+          <select id="vr-role"><option value="">-- ロール選択 --</option></select>
+        </div>
+        <div class="form-group">
+          <label>ラベル (任意)</label>
+          <input type="text" id="vr-label" placeholder="説明" />
+        </div>
+        <button class="btn btn-primary" onclick="addVoiceRole()" style="margin-bottom:0;">追加</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom:16px;">設定一覧</h2>
+      <div id="voice-roles-list"></div>
+    </div>
+  </div>
+
+  <!-- Members Tab -->
+  <div class="tab-panel" id="tab-members">
+    <div class="card">
+      <div class="card-header"><h2>メンバー一覧</h2></div>
+      <div class="filter-row">
+        <div class="form-group">
+          <label>ロールを持たないメンバーでフィルタ</label>
+          <select id="member-filter-role">
+            <option value="">-- フィルタなし --</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost" onclick="loadMembers()">更新</button>
+      </div>
+      <div id="members-list"></div>
+    </div>
+  </div>
+
+  <!-- Leave Log Tab -->
+  <div class="tab-panel" id="tab-leave-log">
+    <div class="card">
+      <div class="card-header">
+        <h2>退出ログ</h2>
+        <span id="leave-log-total" class="badge"></span>
+      </div>
+      <div id="leave-log-list"></div>
+      <div class="pagination" id="leave-log-pagination"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+import express from 'express';
+import path from 'path';
+import snapshotsRouter from './routes/snapshots';
+import reactionRolesRouter from './routes/reactionRoles';
+import voiceRolesRouter from './routes/voiceRoles';
+import membersRouter from './routes/members';
+import leaveLogsRouter from './routes/leaveLogs';
+import discordRouter from './routes/discord';
+
+export function createApp(): express.Application {
+  const app = express();
+
+  app.use(express.json());
+  app.use(express.static(path.join(__dirname, 'public')));
+
+  app.use('/api/snapshots', snapshotsRouter);
+  app.use('/api/reaction-roles', reactionRolesRouter);
+  app.use('/api/voice-roles', voiceRolesRouter);
+  app.use('/api/members', membersRouter);
+  app.use('/api/leave-log', leaveLogsRouter);
+  app.use('/api/discord', discordRouter);
+
+  return app;
+}
+
+export function startServer(port: number): void {
+  const app = createApp();
+  app.listen(port, () => {
+    console.log(`[Web] Server listening on http://localhost:${port}`);
+  });
+}

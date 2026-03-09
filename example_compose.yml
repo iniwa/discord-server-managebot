@@ -1,0 +1,15 @@
+services:
+  discord-server-managebot:
+    image: ghcr.io/iniwa/discord-server-managebot:latest
+    container_name: discord-server-managebot
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    volumes:
+      - /home/iniwa/docker/discord-server-managebot/data:/data
+    environment:
+      - TZ=Asia/Tokyo
+      - DISCORD_TOKEN=<your_token>
+      - DISCORD_GUILD_ID=<your_guild_id>
+      - CLIENT_ID=<your_client_id>
+      - PORT=3002

@@ -62,5 +62,18 @@ export function runMigrations(db: Database.Database): void {
       left_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       roles_at_leave TEXT NOT NULL DEFAULT '[]'
     );
+
+    CREATE TABLE IF NOT EXISTS bot_logs (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id   TEXT NOT NULL,
+      action     TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      username   TEXT NOT NULL,
+      role_id    TEXT NOT NULL,
+      role_name  TEXT NOT NULL,
+      message_id TEXT,
+      emoji      TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
   `);
 }

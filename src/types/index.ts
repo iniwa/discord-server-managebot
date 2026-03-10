@@ -46,6 +46,19 @@ export interface VoiceRole {
   created_at: string;
 }
 
+export interface BotLog {
+  id: number;
+  guild_id: string;
+  action: string;
+  user_id: string;
+  username: string;
+  role_id: string;
+  role_name: string;
+  message_id: string | null;
+  emoji: string | null;
+  created_at: string;
+}
+
 export interface LeaveLog {
   id: number;
   guild_id: string;

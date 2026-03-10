@@ -3,6 +3,7 @@ let rolesCache = [];
 let channelsCache = [];
 let emojisCache = [];
 let leaveLogPage = 1;
+let botLogPage = 1;
 let memberSortKey = 'display_name';
 let memberSortDir = 'asc';
 
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadVoiceRoles(),
     loadMembers(),
     loadLeaveLog(),
+    loadBotLogs(),
   ]);
 });
 
@@ -533,6 +535,46 @@ async function loadLeaveLog(page) {
     <button class="btn btn-ghost btn-sm" ${leaveLogPage <= 1 ? 'disabled' : ''} onclick="loadLeaveLog(${leaveLogPage - 1})">←</button>
     <span style="color:var(--text-muted);font-size:13px;">${leaveLogPage} / ${totalPages}</span>
     <button class="btn btn-ghost btn-sm" ${leaveLogPage >= totalPages ? 'disabled' : ''} onclick="loadLeaveLog(${leaveLogPage + 1})">→</button>
+  `;
+}
+
+// ── BOT Log ───────────────────────────────────────────────────────────────
+async function loadBotLogs(page) {
+  if (page !== undefined) botLogPage = page;
+  const limit = 50;
+  const data = await api(`/api/bot-logs?page=${botLogPage}&limit=${limit}`);
+  const el = document.getElementById('bot-log-list');
+  const totalEl = document.getElementById('bot-log-total');
+  totalEl.textContent = `${data.total} 件`;
+  if (!data.rows.length) {
+    el.innerHTML = emptyState('ログはまだありません');
+    document.getElementById('bot-log-pagination').innerHTML = '';
+    return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>日時</th><th>操作</th><th>ユーザー</th><th>ロール</th><th>絵文字</th></tr></thead>
+    <tbody>
+    ${data.rows.map(l => {
+      const actionLabel = l.action === 'reaction_role_add' ? '✅ ロール付与' : '❌ ロール剥奪';
+      const actionClass = l.action === 'reaction_role_add' ? 'color:var(--success)' : 'color:var(--danger)';
+      return `<tr>
+        <td>${formatDate(l.created_at)}</td>
+        <td style="${actionClass};font-weight:600;">${actionLabel}</td>
+        <td>${esc(l.username)}</td>
+        <td><span class="role-chip">${esc(l.role_name)}</span></td>
+        <td>${esc(l.emoji || '—')}</td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>`;
+
+  const totalPages = Math.ceil(data.total / limit);
+  const pagEl = document.getElementById('bot-log-pagination');
+  if (totalPages <= 1) { pagEl.innerHTML = ''; return; }
+  pagEl.innerHTML = `
+    <button class="btn btn-ghost btn-sm" ${botLogPage <= 1 ? 'disabled' : ''} onclick="loadBotLogs(${botLogPage - 1})">←</button>
+    <span style="color:var(--text-muted);font-size:13px;">${botLogPage} / ${totalPages}</span>
+    <button class="btn btn-ghost btn-sm" ${botLogPage >= totalPages ? 'disabled' : ''} onclick="loadBotLogs(${botLogPage + 1})">→</button>
   `;
 }
 

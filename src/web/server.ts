@@ -6,6 +6,7 @@ import voiceRolesRouter from './routes/voiceRoles';
 import membersRouter from './routes/members';
 import leaveLogsRouter from './routes/leaveLogs';
 import discordRouter from './routes/discord';
+import botLogsRouter from './routes/botLogs';
 
 export function createApp(): express.Application {
   const app = express();
@@ -19,6 +20,7 @@ export function createApp(): express.Application {
   app.use('/api/members', membersRouter);
   app.use('/api/leave-log', leaveLogsRouter);
   app.use('/api/discord', discordRouter);
+  app.use('/api/bot-logs', botLogsRouter);
 
   return app;
 }

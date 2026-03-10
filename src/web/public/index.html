@@ -23,6 +23,7 @@
     <button class="tab-btn" data-tab="voice-roles">VCロール</button>
     <button class="tab-btn" data-tab="members">メンバー</button>
     <button class="tab-btn" data-tab="leave-log">退出ログ</button>
+    <button class="tab-btn" data-tab="bot-log">BOTログ</button>
   </nav>
 
   <!-- Snapshots Tab -->
@@ -147,6 +148,18 @@
       </div>
       <div id="leave-log-list"></div>
       <div class="pagination" id="leave-log-pagination"></div>
+    </div>
+  </div>
+
+  <!-- BOT Log Tab -->
+  <div class="tab-panel" id="tab-bot-log">
+    <div class="card">
+      <div class="card-header">
+        <h2>BOTログ</h2>
+        <span id="bot-log-total" class="badge"></span>
+      </div>
+      <div id="bot-log-list"></div>
+      <div class="pagination" id="bot-log-pagination"></div>
     </div>
   </div>
 

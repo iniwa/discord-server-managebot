@@ -193,21 +193,26 @@ async function viewSnapshot(id, takenAt) {
   document.getElementById('snapshot-detail-title').textContent = `スナップショット #${id} — ${formatDate(takenAt)}`;
   const entries = data.entries || [];
   document.getElementById('snapshot-entries').innerHTML = entries.length
-    ? `<table>
-        <thead><tr><th>名前</th><th>ID</th><th>Position</th><th>Color</th><th>Hoist</th><th>Mentionable</th></tr></thead>
-        <tbody>
-        ${entries.map(e => `
-          <tr>
-            <td>${esc(e.role_name)}</td>
-            <td class="mono">${e.role_id}</td>
-            <td>${e.position}</td>
-            <td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#${e.color.toString(16).padStart(6,'0')};vertical-align:middle;margin-right:4px;"></span>#${e.color.toString(16).padStart(6,'0')}</td>
-            <td>${e.hoist ? '✓' : '—'}</td>
-            <td>${e.mentionable ? '✓' : '—'}</td>
-          </tr>
-        `).join('')}
-        </tbody>
-      </table>`
+    ? entries.map(e => {
+        const colorHex = '#' + e.color.toString(16).padStart(6, '0');
+        const memberList = (e.members || []).map(m =>
+          `<span class="role-chip" title="${esc(m.username)}">${esc(m.display_name || m.username)}</span>`
+        ).join('');
+        return `<div class="snapshot-role-block">
+          <div class="snapshot-role-header">
+            <span style="display:inline-flex;align-items:center;gap:6px;">
+              <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${colorHex};flex-shrink:0;"></span>
+              <strong>${esc(e.role_name)}</strong>
+            </span>
+            <span style="display:flex;gap:12px;align-items:center;color:var(--text-muted);font-size:12px;">
+              ${e.hoist ? '<span>表示</span>' : ''}
+              ${e.mentionable ? '<span>メンション可</span>' : ''}
+              <span class="badge">${(e.members || []).length} 人</span>
+            </span>
+          </div>
+          <div class="snapshot-role-members">${memberList || '<span style="color:var(--text-muted);font-size:12px;">なし</span>'}</div>
+        </div>`;
+      }).join('')
     : emptyState('エントリがありません');
   detail.style.display = 'block';
   detail.scrollIntoView({ behavior: 'smooth' });

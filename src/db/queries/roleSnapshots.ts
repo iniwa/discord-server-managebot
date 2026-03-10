@@ -1,5 +1,5 @@
 import { getDb } from '../index';
-import type { RoleSnapshot, RoleSnapshotEntry } from '../../types/index';
+import type { RoleSnapshot, RoleSnapshotEntry, RoleSnapshotMember } from '../../types/index';
 
 export function listSnapshots(guildId: string): RoleSnapshot[] {
   return getDb()
@@ -46,6 +46,33 @@ export function insertSnapshotEntry(
       entry.position,
       entry.permissions
     );
+}
+
+export function insertSnapshotMember(
+  snapshotId: number,
+  roleId: string,
+  member: { user_id: string; username: string; display_name: string }
+): void {
+  getDb()
+    .prepare(
+      `INSERT INTO role_snapshot_members (snapshot_id, role_id, user_id, username, display_name)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(snapshotId, roleId, member.user_id, member.username, member.display_name);
+}
+
+export function getSnapshotMembersByRole(
+  snapshotId: number
+): Map<string, RoleSnapshotMember[]> {
+  const rows = getDb()
+    .prepare('SELECT * FROM role_snapshot_members WHERE snapshot_id = ? ORDER BY display_name')
+    .all(snapshotId) as RoleSnapshotMember[];
+  const map = new Map<string, RoleSnapshotMember[]>();
+  for (const row of rows) {
+    if (!map.has(row.role_id)) map.set(row.role_id, []);
+    map.get(row.role_id)!.push(row);
+  }
+  return map;
 }
 
 export function deleteSnapshot(id: number): void {

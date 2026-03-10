@@ -4,6 +4,7 @@ import {
   listSnapshots,
   getSnapshot,
   getSnapshotEntries,
+  getSnapshotMembersByRole,
   deleteSnapshot,
 } from '../../db/queries/roleSnapshots';
 import { takeRoleSnapshot } from '../../bot/tasks/roleSnapshot';
@@ -36,7 +37,12 @@ router.get('/:id', (req, res) => {
   const snapshot = getSnapshot(id);
   if (!snapshot) return res.status(404).json({ error: 'Not found' });
   const entries = getSnapshotEntries(id);
-  return res.json({ ...snapshot, entries });
+  const membersByRole = getSnapshotMembersByRole(id);
+  const entriesWithMembers = entries.map((e) => ({
+    ...e,
+    members: membersByRole.get(e.role_id) ?? [],
+  }));
+  return res.json({ ...snapshot, entries: entriesWithMembers });
 });
 
 router.delete('/:id', (req, res) => {

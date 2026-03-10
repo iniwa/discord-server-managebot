@@ -21,6 +21,15 @@ export function runMigrations(db: Database.Database): void {
       permissions TEXT NOT NULL DEFAULT '0'
     );
 
+    CREATE TABLE IF NOT EXISTS role_snapshot_members (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      snapshot_id  INTEGER NOT NULL REFERENCES role_snapshots(id) ON DELETE CASCADE,
+      role_id      TEXT NOT NULL,
+      user_id      TEXT NOT NULL,
+      username     TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT ''
+    );
+
     CREATE TABLE IF NOT EXISTS reaction_roles (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       guild_id    TEXT NOT NULL,

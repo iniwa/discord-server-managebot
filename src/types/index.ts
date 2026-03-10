@@ -17,6 +17,15 @@ export interface RoleSnapshotEntry {
   permissions: string;
 }
 
+export interface RoleSnapshotMember {
+  id: number;
+  snapshot_id: number;
+  role_id: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+}
+
 export interface ReactionRole {
   id: number;
   guild_id: string;

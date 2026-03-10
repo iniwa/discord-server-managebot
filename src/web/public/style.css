@@ -304,6 +304,26 @@ input[type="text"]:focus, select:focus { border-color: var(--accent); }
 }
 .sort-btn:hover { color: var(--text); }
 
+/* ── Snapshot role block ─────────────────────────────────────────────────── */
+.snapshot-role-block {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+.snapshot-role-block:last-child { border-bottom: none; }
+
+.snapshot-role-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.snapshot-role-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 /* ── Emoji widget ─────────────────────────────────────────────────────────── */
 .emoji-input-text {
   margin-top: 6px;

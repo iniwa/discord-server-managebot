@@ -1,17 +1,26 @@
 // ── State ──────────────────────────────────────────────────────────────────
 let rolesCache = [];
 let channelsCache = [];
+let emojisCache = [];
 let leaveLogPage = 1;
+let memberSortKey = 'display_name';
+let memberSortDir = 'asc';
+
+// モーダル編集対象
+let editMode = null; // 'rr' | 'vr'
+let editId = null;
 
 // ── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   setupTabs();
   await loadDiscordData();
-  await loadSnapshots();
-  await loadReactionRoles();
-  await loadVoiceRoles();
-  await loadMembers();
-  await loadLeaveLog();
+  await Promise.all([
+    loadSnapshots(),
+    loadReactionRoles(),
+    loadVoiceRoles(),
+    loadMembers(),
+    loadLeaveLog(),
+  ]);
 });
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
@@ -26,51 +35,111 @@ function setupTabs() {
   });
 }
 
-// ── Discord Data ────────────────────────────────────────────────────────────
+// ── Discord Data ─────────────────────────────────────────────────────────
 async function loadDiscordData() {
   try {
-    const [roles, channels] = await Promise.all([
+    const [roles, channels, emojis] = await Promise.all([
       api('/api/discord/roles'),
       api('/api/discord/channels'),
+      api('/api/discord/emojis'),
     ]);
     rolesCache = roles;
     channelsCache = channels;
-    populateRoleSelects(roles);
-    populateChannelSelects(channels);
+    emojisCache = emojis;
+    populateAllSelects();
   } catch (e) {
     console.warn('Discord data not available yet:', e);
   }
 }
 
-function populateRoleSelects(roles) {
-  const selects = ['rr-role', 'vr-role', 'member-filter-role'];
-  selects.forEach(id => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    const first = sel.options[0];
-    sel.innerHTML = '';
-    sel.appendChild(first);
-    roles.forEach(r => {
-      const opt = document.createElement('option');
-      opt.value = r.id;
-      opt.textContent = r.name;
-      sel.appendChild(opt);
-    });
+function populateAllSelects() {
+  populateRoleSelect('rr-role');
+  populateRoleSelect('vr-role');
+  populateRoleSelect('member-filter-role');
+  populateRoleSelect('modal-rr-role');
+  populateRoleSelect('modal-vr-role');
+
+  populateChannelSelect('rr-channel', false);    // テキスト含む全チャンネル
+  populateChannelSelect('vr-channel', true);      // VCのみ
+  populateChannelSelect('modal-rr-channel', false);
+  populateChannelSelect('modal-vr-channel', true);
+
+  populateEmojiSelect('rr-emoji-select');
+  populateEmojiSelect('modal-rr-emoji-select');
+}
+
+function populateRoleSelect(id) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const first = sel.options[0];
+  sel.innerHTML = '';
+  sel.appendChild(first);
+  rolesCache.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r.id;
+    opt.textContent = r.name;
+    sel.appendChild(opt);
   });
 }
 
-function populateChannelSelects(channels) {
-  const voiceSel = document.getElementById('vr-channel');
-  if (!voiceSel) return;
-  const first = voiceSel.options[0];
-  voiceSel.innerHTML = '';
-  voiceSel.appendChild(first);
-  channels.filter(c => c.isVoice).forEach(c => {
+function populateChannelSelect(id, voiceOnly) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const first = sel.options[0];
+  sel.innerHTML = '';
+  sel.appendChild(first);
+  const list = voiceOnly ? channelsCache.filter(c => c.isVoice) : channelsCache;
+  list.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id;
-    opt.textContent = c.name;
-    voiceSel.appendChild(opt);
+    opt.textContent = (c.isVoice ? '🔊 ' : '# ') + c.name;
+    sel.appendChild(opt);
   });
+}
+
+function populateEmojiSelect(id) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  // Keep first two options (placeholder + unicode)
+  while (sel.options.length > 2) sel.remove(2);
+  emojisCache.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.tag;
+    opt.textContent = (e.animated ? '[GIF] ' : '') + e.name;
+    sel.appendChild(opt);
+  });
+}
+
+function onEmojiSelectChange(prefix) {
+  const sel = document.getElementById(prefix + '-emoji-select');
+  const txt = document.getElementById(prefix + '-emoji-text');
+  txt.style.display = sel.value === '__unicode__' ? 'block' : 'none';
+  if (sel.value !== '__unicode__') txt.value = '';
+}
+
+/** 絵文字セレクタから最終的な絵文字文字列を取得 */
+function getEmojiValue(prefix) {
+  const sel = document.getElementById(prefix + '-emoji-select');
+  if (sel.value === '__unicode__') {
+    return document.getElementById(prefix + '-emoji-text').value.trim();
+  }
+  return sel.value;
+}
+
+/** 絵文字セレクタに値をセット（編集時など） */
+function setEmojiValue(prefix, emoji) {
+  const sel = document.getElementById(prefix + '-emoji-select');
+  const txt = document.getElementById(prefix + '-emoji-text');
+  // カスタム絵文字か？
+  const found = Array.from(sel.options).find(o => o.value === emoji);
+  if (found) {
+    sel.value = emoji;
+    txt.style.display = 'none';
+  } else {
+    sel.value = '__unicode__';
+    txt.style.display = 'block';
+    txt.value = emoji;
+  }
 }
 
 function roleName(id) {
@@ -83,14 +152,11 @@ function channelName(id) {
   return c ? c.name : id;
 }
 
-// ── Snapshots ───────────────────────────────────────────────────────────────
+// ── Snapshots ────────────────────────────────────────────────────────────
 async function loadSnapshots() {
   const list = await api('/api/snapshots');
   const el = document.getElementById('snapshots-list');
-  if (!list.length) {
-    el.innerHTML = emptyState('スナップショットはまだありません');
-    return;
-  }
+  if (!list.length) { el.innerHTML = emptyState('スナップショットはまだありません'); return; }
   el.innerHTML = `<table>
     <thead><tr><th>ID</th><th>取得日時</th><th>メモ</th><th></th></tr></thead>
     <tbody>
@@ -113,9 +179,9 @@ async function takeSnapshot() {
   const note = document.getElementById('snapshot-note').value.trim();
   try {
     await api('/api/snapshots', 'POST', { note: note || undefined });
-    toast('スナップショットを取得しました', 'success');
+    toast('スナップショットを取得しました。ロール一覧も更新します…', 'success');
     document.getElementById('snapshot-note').value = '';
-    await loadSnapshots();
+    await Promise.all([loadSnapshots(), loadDiscordData()]);
   } catch (e) {
     toast('取得に失敗しました: ' + e, 'error');
   }
@@ -135,7 +201,7 @@ async function viewSnapshot(id, takenAt) {
             <td>${esc(e.role_name)}</td>
             <td class="mono">${e.role_id}</td>
             <td>${e.position}</td>
-            <td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#${e.color.toString(16).padStart(6,'0')};vertical-align:middle;margin-right:4px;"></span>${'#'+e.color.toString(16).padStart(6,'0')}</td>
+            <td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#${e.color.toString(16).padStart(6,'0')};vertical-align:middle;margin-right:4px;"></span>#${e.color.toString(16).padStart(6,'0')}</td>
             <td>${e.hoist ? '✓' : '—'}</td>
             <td>${e.mentionable ? '✓' : '—'}</td>
           </tr>
@@ -155,25 +221,25 @@ async function deleteSnapshot(id) {
   await loadSnapshots();
 }
 
-// ── Reaction Roles ──────────────────────────────────────────────────────────
+// ── Reaction Roles ────────────────────────────────────────────────────────
 async function loadReactionRoles() {
   const list = await api('/api/reaction-roles');
   const el = document.getElementById('reaction-roles-list');
-  if (!list.length) {
-    el.innerHTML = emptyState('リアクションロールはまだ設定されていません');
-    return;
-  }
+  if (!list.length) { el.innerHTML = emptyState('リアクションロールはまだ設定されていません'); return; }
   el.innerHTML = `<table>
-    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネルID</th><th>メッセージID</th><th>ラベル</th><th></th></tr></thead>
+    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネル</th><th>メッセージID</th><th>ラベル</th><th></th></tr></thead>
     <tbody>
     ${list.map(r => `
       <tr>
         <td>${esc(r.emoji)}</td>
         <td>${esc(roleName(r.role_id))}</td>
-        <td class="mono">${r.channel_id}</td>
+        <td>${esc(channelName(r.channel_id))}</td>
         <td class="mono">${r.message_id}</td>
         <td>${esc(r.label || '—')}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteReactionRole(${r.id})">削除</button></td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditRR(${JSON.stringify(r).replace(/"/g,'&quot;')})">編集</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteReactionRole(${r.id})">削除</button>
+        </td>
       </tr>
     `).join('')}
     </tbody>
@@ -181,9 +247,9 @@ async function loadReactionRoles() {
 }
 
 async function addReactionRole() {
-  const channel_id = document.getElementById('rr-channel').value.trim();
+  const channel_id = document.getElementById('rr-channel').value;
   const message_id = document.getElementById('rr-message').value.trim();
-  const emoji = document.getElementById('rr-emoji').value.trim();
+  const emoji = getEmojiValue('rr');
   const role_id = document.getElementById('rr-role').value;
   const label = document.getElementById('rr-label').value.trim();
   if (!channel_id || !message_id || !emoji || !role_id) {
@@ -192,8 +258,13 @@ async function addReactionRole() {
   try {
     await api('/api/reaction-roles', 'POST', { channel_id, message_id, emoji, role_id, label: label || null });
     toast('追加しました', 'success');
-    ['rr-channel','rr-message','rr-emoji','rr-label'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('rr-channel').selectedIndex = 0;
+    document.getElementById('rr-message').value = '';
+    document.getElementById('rr-emoji-select').selectedIndex = 0;
+    document.getElementById('rr-emoji-text').value = '';
+    document.getElementById('rr-emoji-text').style.display = 'none';
     document.getElementById('rr-role').selectedIndex = 0;
+    document.getElementById('rr-label').value = '';
     await loadReactionRoles();
   } catch (e) {
     toast('追加失敗: ' + e, 'error');
@@ -207,14 +278,27 @@ async function deleteReactionRole(id) {
   await loadReactionRoles();
 }
 
-// ── Voice Roles ─────────────────────────────────────────────────────────────
+function openEditRR(item) {
+  editMode = 'rr';
+  editId = item.id;
+  document.getElementById('modal-title').textContent = 'リアクションロール編集';
+  document.getElementById('modal-rr-fields').style.display = 'block';
+  document.getElementById('modal-vr-fields').style.display = 'none';
+
+  document.getElementById('modal-rr-channel').value = item.channel_id;
+  document.getElementById('modal-rr-message').value = item.message_id;
+  setEmojiValue('modal-rr', item.emoji);
+  document.getElementById('modal-rr-role').value = item.role_id;
+  document.getElementById('modal-rr-label').value = item.label || '';
+
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+// ── Voice Roles ───────────────────────────────────────────────────────────
 async function loadVoiceRoles() {
   const list = await api('/api/voice-roles');
   const el = document.getElementById('voice-roles-list');
-  if (!list.length) {
-    el.innerHTML = emptyState('VCロールはまだ設定されていません');
-    return;
-  }
+  if (!list.length) { el.innerHTML = emptyState('VCロールはまだ設定されていません'); return; }
   el.innerHTML = `<table>
     <thead><tr><th>チャンネル</th><th>ロール</th><th>ラベル</th><th></th></tr></thead>
     <tbody>
@@ -223,7 +307,10 @@ async function loadVoiceRoles() {
         <td>${esc(channelName(v.channel_id))}</td>
         <td>${esc(roleName(v.role_id))}</td>
         <td>${esc(v.label || '—')}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteVoiceRole(${v.id})">削除</button></td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditVR(${JSON.stringify(v).replace(/"/g,'&quot;')})">編集</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteVoiceRole(${v.id})">削除</button>
+        </td>
       </tr>
     `).join('')}
     </tbody>
@@ -254,22 +341,131 @@ async function deleteVoiceRole(id) {
   await loadVoiceRoles();
 }
 
-// ── Members ─────────────────────────────────────────────────────────────────
-async function loadMembers() {
-  const withoutRole = document.getElementById('member-filter-role').value;
-  const url = '/api/members' + (withoutRole ? `?without_role=${withoutRole}` : '');
+function openEditVR(item) {
+  editMode = 'vr';
+  editId = item.id;
+  document.getElementById('modal-title').textContent = 'VCロール編集';
+  document.getElementById('modal-rr-fields').style.display = 'none';
+  document.getElementById('modal-vr-fields').style.display = 'block';
+
+  document.getElementById('modal-vr-channel').value = item.channel_id;
+  document.getElementById('modal-vr-role').value = item.role_id;
+  document.getElementById('modal-vr-label').value = item.label || '';
+
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────
+function closeModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  editMode = null;
+  editId = null;
+}
+
+function onOverlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+async function saveEdit() {
+  if (!editMode || !editId) return;
   try {
-    const list = await api(url);
-    const el = document.getElementById('members-list');
-    if (!list.length) {
-      el.innerHTML = emptyState('メンバーが見つかりません');
-      return;
+    if (editMode === 'rr') {
+      const channel_id = document.getElementById('modal-rr-channel').value;
+      const message_id = document.getElementById('modal-rr-message').value.trim();
+      const emoji = getEmojiValue('modal-rr');
+      const role_id = document.getElementById('modal-rr-role').value;
+      const label = document.getElementById('modal-rr-label').value.trim();
+      if (!channel_id || !message_id || !emoji || !role_id) {
+        toast('必須項目を入力してください', 'error'); return;
+      }
+      await api(`/api/reaction-roles/${editId}`, 'PUT', { channel_id, message_id, emoji, role_id, label: label || null });
+      await loadReactionRoles();
+    } else {
+      const channel_id = document.getElementById('modal-vr-channel').value;
+      const role_id = document.getElementById('modal-vr-role').value;
+      const label = document.getElementById('modal-vr-label').value.trim();
+      if (!channel_id || !role_id) {
+        toast('チャンネルとロールを選択してください', 'error'); return;
+      }
+      await api(`/api/voice-roles/${editId}`, 'PUT', { channel_id, role_id, label: label || null });
+      await loadVoiceRoles();
     }
-    el.innerHTML = `<p style="margin-bottom:12px;color:var(--text-muted);font-size:12px;">${list.length} 人</p>
+    toast('保存しました', 'success');
+    closeModal();
+  } catch (e) {
+    toast('保存失敗: ' + e, 'error');
+  }
+}
+
+// ── Members ───────────────────────────────────────────────────────────────
+function onFilterTypeChange() {
+  const type = document.getElementById('member-filter-type').value;
+  document.getElementById('member-filter-role-group').style.display = type ? 'flex' : 'none';
+}
+
+function setSortKey(key) {
+  if (memberSortKey === key) {
+    memberSortDir = memberSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    memberSortKey = key;
+    memberSortDir = 'asc';
+  }
+  loadMembers();
+}
+
+async function loadMembers() {
+  const filterType = document.getElementById('member-filter-type').value;
+  const roleId = document.getElementById('member-filter-role').value;
+
+  let members = getMembers(); // from in-memory cache via API
+
+  try {
+    const list = await api('/api/members');
+
+    // フィルタ
+    let result = list;
+    if (filterType && roleId) {
+      if (filterType === 'with') {
+        result = list.filter(m => m.roles.some(r => r.id === roleId));
+      } else if (filterType === 'without') {
+        result = list.filter(m => !m.roles.some(r => r.id === roleId));
+      }
+    }
+
+    // ソート
+    result.sort((a, b) => {
+      let va, vb;
+      if (memberSortKey === 'joined_at') {
+        va = a.joined_at ? new Date(a.joined_at).getTime() : 0;
+        vb = b.joined_at ? new Date(b.joined_at).getTime() : 0;
+      } else if (memberSortKey === 'username') {
+        va = a.username.toLowerCase();
+        vb = b.username.toLowerCase();
+      } else {
+        va = (a.display_name || a.username).toLowerCase();
+        vb = (b.display_name || b.username).toLowerCase();
+      }
+      if (va < vb) return memberSortDir === 'asc' ? -1 : 1;
+      if (va > vb) return memberSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    const el = document.getElementById('members-list');
+    if (!result.length) { el.innerHTML = emptyState('メンバーが見つかりません'); return; }
+
+    const sortIcon = (key) => memberSortKey === key ? (memberSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+    el.innerHTML = `<p style="margin-bottom:12px;color:var(--text-muted);font-size:12px;">${result.length} 人 / 全 ${list.length} 人</p>
     <table>
-      <thead><tr><th>表示名</th><th>ユーザー名</th><th>ID</th><th>参加日</th><th>ロール</th></tr></thead>
+      <thead><tr>
+        <th><button class="sort-btn" onclick="setSortKey('display_name')">表示名${sortIcon('display_name')}</button></th>
+        <th><button class="sort-btn" onclick="setSortKey('username')">ユーザー名${sortIcon('username')}</button></th>
+        <th>ID</th>
+        <th><button class="sort-btn" onclick="setSortKey('joined_at')">参加日${sortIcon('joined_at')}</button></th>
+        <th>ロール</th>
+      </tr></thead>
       <tbody>
-      ${list.map(m => `
+      ${result.map(m => `
         <tr>
           <td>${esc(m.display_name)}</td>
           <td>${esc(m.username)}</td>
@@ -285,7 +481,7 @@ async function loadMembers() {
   }
 }
 
-// ── Leave Log ───────────────────────────────────────────────────────────────
+// ── Leave Log ─────────────────────────────────────────────────────────────
 async function loadLeaveLog(page) {
   if (page !== undefined) leaveLogPage = page;
   const limit = 50;
@@ -323,7 +519,7 @@ async function loadLeaveLog(page) {
   `;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────
 async function api(url, method = 'GET', body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (body !== undefined) opts.body = JSON.stringify(body);

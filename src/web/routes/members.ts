@@ -1,35 +1,21 @@
 import { Router } from 'express';
-import { getClient } from '../../bot/index';
+import { getMembers, getCacheStatus } from '../../bot/cache/membersCache';
 
 const router = Router();
-const GUILD_ID = process.env.DISCORD_GUILD_ID!;
 
-router.get('/', async (req, res) => {
-  try {
-    const client = getClient();
-    const guild = await client.guilds.fetch(GUILD_ID);
-    const members = await guild.members.fetch();
+router.get('/', (req, res) => {
+  const withoutRole = req.query.without_role as string | undefined;
+  const members = getMembers();
 
-    const withoutRole = req.query.without_role as string | undefined;
+  const result = withoutRole
+    ? members.filter((m) => !m.roles.some((r) => r.id === withoutRole))
+    : members;
 
-    const result = members
-      .filter((m) => !m.user.bot)
-      .filter((m) => !withoutRole || !m.roles.cache.has(withoutRole))
-      .map((m) => ({
-        id: m.id,
-        username: m.user.username,
-        display_name: m.displayName,
-        joined_at: m.joinedAt?.toISOString() ?? null,
-        roles: m.roles.cache
-          .filter((r) => r.id !== guild.id)
-          .map((r) => ({ id: r.id, name: r.name })),
-      }));
+  res.json(result);
+});
 
-    res.json(result);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: String(err) });
-  }
+router.get('/cache-status', (_req, res) => {
+  res.json(getCacheStatus());
 });
 
 export default router;

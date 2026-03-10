@@ -52,8 +52,8 @@
       <div class="card-header"><h2>リアクションロール追加</h2></div>
       <div class="form-row">
         <div class="form-group">
-          <label>チャンネルID</label>
-          <input type="text" id="rr-channel" placeholder="チャンネルID" />
+          <label>チャンネル</label>
+          <select id="rr-channel"><option value="">-- チャンネル選択 --</option></select>
         </div>
         <div class="form-group">
           <label>メッセージID</label>
@@ -61,7 +61,11 @@
         </div>
         <div class="form-group">
           <label>絵文字</label>
-          <input type="text" id="rr-emoji" placeholder="😀 or &lt;:name:id&gt;" />
+          <select id="rr-emoji-select" onchange="onEmojiSelectChange('rr')">
+            <option value="">-- 絵文字を選択 --</option>
+            <option value="__unicode__">📝 Unicode 絵文字を入力...</option>
+          </select>
+          <input type="text" id="rr-emoji-text" class="emoji-input-text" placeholder="😀" style="display:none;" />
         </div>
         <div class="form-group">
           <label>ロール</label>
@@ -110,14 +114,22 @@
   <div class="tab-panel" id="tab-members">
     <div class="card">
       <div class="card-header"><h2>メンバー一覧</h2></div>
-      <div class="filter-row">
-        <div class="form-group">
-          <label>ロールを持たないメンバーでフィルタ</label>
-          <select id="member-filter-role">
+      <div class="filter-row" style="flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+        <div class="form-group" style="min-width:200px;max-width:260px;">
+          <label>フィルタ種別</label>
+          <select id="member-filter-type" onchange="onFilterTypeChange()">
             <option value="">-- フィルタなし --</option>
+            <option value="with">このロールを持つ</option>
+            <option value="without">このロールを持たない</option>
           </select>
         </div>
-        <button class="btn btn-ghost" onclick="loadMembers()">更新</button>
+        <div class="form-group" id="member-filter-role-group" style="min-width:200px;max-width:260px;display:none;">
+          <label>ロール</label>
+          <select id="member-filter-role"><option value="">-- ロール選択 --</option></select>
+        </div>
+        <div style="display:flex;align-items:flex-end;">
+          <button class="btn btn-ghost" onclick="loadMembers()">検索</button>
+        </div>
       </div>
       <div id="members-list"></div>
     </div>
@@ -132,6 +144,67 @@
       </div>
       <div id="leave-log-list"></div>
       <div class="pagination" id="leave-log-pagination"></div>
+    </div>
+  </div>
+
+  <!-- ── Edit Modal ──────────────────────────────────────────────────────── -->
+  <div class="modal-overlay hidden" id="modal-overlay" onclick="onOverlayClick(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">編集</h2>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Reaction Role edit fields -->
+        <div id="modal-rr-fields">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>チャンネル</label>
+            <select id="modal-rr-channel"><option value="">-- チャンネル選択 --</option></select>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>メッセージID</label>
+            <input type="text" id="modal-rr-message" placeholder="メッセージID" />
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>絵文字</label>
+            <select id="modal-rr-emoji-select" onchange="onEmojiSelectChange('modal-rr')">
+              <option value="">-- 絵文字を選択 --</option>
+              <option value="__unicode__">📝 Unicode 絵文字を入力...</option>
+            </select>
+            <input type="text" id="modal-rr-emoji-text" class="emoji-input-text" placeholder="😀" style="display:none;" />
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>ロール</label>
+            <select id="modal-rr-role"><option value="">-- ロール選択 --</option></select>
+          </div>
+          <div class="form-group">
+            <label>ラベル (任意)</label>
+            <input type="text" id="modal-rr-label" placeholder="説明" />
+          </div>
+        </div>
+
+        <!-- Voice Role edit fields -->
+        <div id="modal-vr-fields" style="display:none;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>ボイスチャンネル</label>
+            <select id="modal-vr-channel"><option value="">-- チャンネル選択 --</option></select>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>付与するロール</label>
+            <select id="modal-vr-role"><option value="">-- ロール選択 --</option></select>
+          </div>
+          <div class="form-group">
+            <label>ラベル (任意)</label>
+            <input type="text" id="modal-vr-label" placeholder="説明" />
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+        <button class="btn btn-primary" id="modal-save-btn" onclick="saveEdit()">保存</button>
+      </div>
     </div>
   </div>
 

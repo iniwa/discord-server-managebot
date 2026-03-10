@@ -7,6 +7,7 @@ import {
   deleteSnapshot,
 } from '../../db/queries/roleSnapshots';
 import { takeRoleSnapshot } from '../../bot/tasks/roleSnapshot';
+import { refreshGuildCache } from '../../bot/cache/guildCache';
 
 const router = Router();
 const GUILD_ID = process.env.DISCORD_GUILD_ID!;
@@ -21,6 +22,8 @@ router.post('/', async (req, res) => {
     const guild = await client.guilds.fetch(GUILD_ID);
     const note: string | undefined = req.body?.note;
     const id = await takeRoleSnapshot(guild, note);
+    // スナップショット取得のついでにキャッシュも更新する
+    refreshGuildCache(guild).catch((e) => console.error('[Snapshots] Cache refresh failed:', e));
     res.status(201).json({ id });
   } catch (err) {
     console.error(err);

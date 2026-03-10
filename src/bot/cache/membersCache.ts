@@ -13,6 +13,7 @@ export interface CachedMember {
 let cache: CachedMember[] = [];
 let lastRefreshed: Date | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
+let cachedGuild: Guild | null = null;
 
 export async function refreshMembers(guild: Guild): Promise<void> {
   try {
@@ -36,10 +37,16 @@ export async function refreshMembers(guild: Guild): Promise<void> {
 }
 
 export function startMembersCacheRefresh(guild: Guild): void {
+  cachedGuild = guild;
   refreshMembers(guild);
 
   if (timer) clearInterval(timer);
   timer = setInterval(() => refreshMembers(guild), REFRESH_INTERVAL_MS);
+}
+
+export async function forceRefreshMembers(): Promise<void> {
+  if (!cachedGuild) throw new Error('Members cache not initialized');
+  await refreshMembers(cachedGuild);
 }
 
 export function getMembers(): CachedMember[] {

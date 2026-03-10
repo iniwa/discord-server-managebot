@@ -413,11 +413,23 @@ function setSortKey(key) {
   loadMembers();
 }
 
+async function refreshMembersCache() {
+  const btn = document.getElementById('members-refresh-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '更新中…'; }
+  try {
+    const status = await api('/api/members/refresh', 'POST');
+    toast(`メンバーキャッシュを更新しました (${status.count} 人)`, 'success');
+    await loadMembers();
+  } catch (e) {
+    toast('更新失敗: ' + e, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '強制更新'; }
+  }
+}
+
 async function loadMembers() {
   const filterType = document.getElementById('member-filter-type').value;
   const roleId = document.getElementById('member-filter-role').value;
-
-  let members = getMembers(); // from in-memory cache via API
 
   try {
     const list = await api('/api/members');

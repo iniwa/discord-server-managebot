@@ -28,6 +28,7 @@ let rolesCache: CachedRole[] = [];
 let channelsCache: CachedChannel[] = [];
 let emojisCache: CachedEmoji[] = [];
 let timer: ReturnType<typeof setInterval> | null = null;
+let cachedGuild: Guild | null = null;
 
 export async function refreshGuildCache(guild: Guild): Promise<void> {
   try {
@@ -71,10 +72,16 @@ export async function refreshGuildCache(guild: Guild): Promise<void> {
 }
 
 export function startGuildCacheRefresh(guild: Guild): void {
+  cachedGuild = guild;
   refreshGuildCache(guild);
 
   if (timer) clearInterval(timer);
   timer = setInterval(() => refreshGuildCache(guild), REFRESH_INTERVAL_MS);
+}
+
+export async function forceRefreshGuildCache(): Promise<void> {
+  if (!cachedGuild) throw new Error('Guild cache not initialized');
+  await refreshGuildCache(cachedGuild);
 }
 
 export function getRoles(): CachedRole[] {

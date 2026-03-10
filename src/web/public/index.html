@@ -113,7 +113,10 @@
   <!-- Members Tab -->
   <div class="tab-panel" id="tab-members">
     <div class="card">
-      <div class="card-header"><h2>メンバー一覧</h2></div>
+      <div class="card-header">
+        <h2>メンバー一覧</h2>
+        <button class="btn btn-ghost btn-sm" id="members-refresh-btn" onclick="refreshMembersCache()">強制更新</button>
+      </div>
       <div class="filter-row" style="flex-wrap:wrap;gap:10px;margin-bottom:16px;">
         <div class="form-group" style="min-width:200px;max-width:260px;">
           <label>フィルタ種別</label>

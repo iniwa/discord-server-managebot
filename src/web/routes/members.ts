@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getMembers, getCacheStatus } from '../../bot/cache/membersCache';
+import { getMembers, getCacheStatus, forceRefreshMembers } from '../../bot/cache/membersCache';
 
 const router = Router();
 
@@ -16,6 +16,15 @@ router.get('/', (req, res) => {
 
 router.get('/cache-status', (_req, res) => {
   res.json(getCacheStatus());
+});
+
+router.post('/refresh', async (_req, res) => {
+  try {
+    await forceRefreshMembers();
+    res.json(getCacheStatus());
+  } catch (err) {
+    res.status(503).json({ error: String(err) });
+  }
 });
 
 export default router;

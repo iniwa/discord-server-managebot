@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { listNicknameConfigs, createNicknameConfig, deleteNicknameConfig } from '../../db/queries/nicknames';
+import {
+  listNicknameConfigs,
+  createNicknameConfig,
+  updateNicknameConfig,
+  deleteNicknameConfig,
+} from '../../db/queries/nicknames';
 
 const router = Router();
 const GUILD_ID = process.env.DISCORD_GUILD_ID!;
@@ -28,6 +33,16 @@ router.post('/', (req, res) => {
   } catch {
     return res.status(409).json({ error: 'Duplicate entry' });
   }
+});
+
+router.put('/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { user_id, voice_channel_id, channel_id, message_id, emoji, nickname, label } = req.body;
+  if (!user_id || !voice_channel_id || !channel_id || !message_id || !emoji || !nickname) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  updateNicknameConfig(id, { user_id, voice_channel_id, channel_id, message_id, emoji, nickname, label: label ?? null });
+  res.json({ ok: true });
 });
 
 router.delete('/:id', (req, res) => {

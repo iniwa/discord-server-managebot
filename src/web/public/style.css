@@ -330,3 +330,31 @@ input[type="text"]:focus, select:focus { border-color: var(--accent); }
   font-size: 18px;
   letter-spacing: .05em;
 }
+
+.emoji-picker {
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 320px;
+}
+
+.emoji-picker button {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 3px 5px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.emoji-picker button:hover {
+  background: var(--surface-3);
+  border-color: var(--border);
+}

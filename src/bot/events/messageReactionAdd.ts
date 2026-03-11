@@ -1,5 +1,6 @@
 import { Client, Events, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
 import { getReactionRole } from '../../db/queries/reactionRoles';
+import { getStatusRole } from '../../db/queries/statusRoles';
 import { insertBotLog } from '../../db/queries/botLogs';
 import { handleNicknameReaction } from './nicknameReaction';
 
@@ -20,24 +21,48 @@ export function registerMessageReactionAdd(client: Client): void {
         // ── ニックネーム変更 ──────────────────────────────────────────
         await handleNicknameReaction(reaction, user);
 
+        const guild = reaction.message.guild;
+        if (!guild) return;
+        const member = await guild.members.fetch(user.id);
+
+        // ── ステータスロール ───────────────────────────────────────────
+        const statusConfig = getStatusRole(reaction.message.id, emoji);
+        if (statusConfig) {
+          const hasRole = member.roles.cache.has(statusConfig.role_id);
+          await reaction.users.remove(user.id);
+          const roleName = guild.roles.cache.get(statusConfig.role_id)?.name ?? statusConfig.role_id;
+
+          if (hasRole) {
+            await member.roles.remove(statusConfig.role_id);
+            console.log(`[StatusRole] Removed role ${roleName} from ${(user as User).username}`);
+            try {
+              await (user as User).send(`**${guild.name}** のステータスロール **${roleName}** が外れました。`);
+            } catch {
+              console.warn(`[StatusRole] Could not DM user ${user.id}`);
+            }
+          } else {
+            await member.roles.add(statusConfig.role_id);
+            console.log(`[StatusRole] Added role ${roleName} to ${(user as User).username}`);
+            try {
+              await (user as User).send(`**${guild.name}** でステータスロール **${roleName}** が付与されました。通話から退出すると自動的に外れます。`);
+            } catch {
+              console.warn(`[StatusRole] Could not DM user ${user.id}`);
+            }
+          }
+          return;
+        }
+
         // ── リアクションロール ─────────────────────────────────────────
         const config = getReactionRole(reaction.message.id, emoji);
         if (!config) return;
 
-        const guild = reaction.message.guild;
-        if (!guild) return;
-
-        const member = await guild.members.fetch(user.id);
         const hasRole = member.roles.cache.has(config.role_id);
-
-        // ユーザーのリアクションを消去（BOT分のみ残す）
         await reaction.users.remove(user.id);
-
         const roleName = guild.roles.cache.get(config.role_id)?.name ?? config.role_id;
 
         if (hasRole) {
           await member.roles.remove(config.role_id);
-          console.log(`[ReactionRole] Removed role ${config.role_id} (${roleName}) from ${(user as User).username}`);
+          console.log(`[ReactionRole] Removed role ${roleName} from ${(user as User).username}`);
           insertBotLog({
             guild_id: guild.id,
             action: 'reaction_role_remove',
@@ -55,7 +80,7 @@ export function registerMessageReactionAdd(client: Client): void {
           }
         } else {
           await member.roles.add(config.role_id);
-          console.log(`[ReactionRole] Added role ${config.role_id} (${roleName}) to ${(user as User).username}`);
+          console.log(`[ReactionRole] Added role ${roleName} to ${(user as User).username}`);
           insertBotLog({
             guild_id: guild.id,
             action: 'reaction_role_add',

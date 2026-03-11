@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadSnapshots(),
     loadReactionRoles(),
     loadVoiceRoles(),
+    loadStatusRoles(),
     loadMembers(),
     loadLeaveLog(),
     loadBotLogs(),
@@ -69,10 +70,20 @@ function populateAllSelects() {
 
   populateEmojiSelect('rr-emoji-select');
   populateEmojiSelect('modal-rr-emoji-select');
+  populateEmojiSelect('sr-emoji-select');
+  populateEmojiSelect('modal-sr-emoji-select');
   populateEmojiSelect('nc-emoji-select');
+  populateEmojiSelect('modal-nc-emoji-select');
 
-  populateChannelSelect('nc-voice-channel', true);   // VCのみ
-  populateChannelSelect('nc-channel', false);        // テキスト含む全チャンネル
+  populateRoleSelect('sr-role');
+  populateRoleSelect('modal-sr-role');
+
+  populateChannelSelect('sr-channel', false);
+  populateChannelSelect('modal-sr-channel', false);
+  populateChannelSelect('nc-voice-channel', true);
+  populateChannelSelect('nc-channel', false);
+  populateChannelSelect('modal-nc-voice-channel', true);
+  populateChannelSelect('modal-nc-channel', false);
 }
 
 function populateRoleSelect(id) {
@@ -120,8 +131,52 @@ function populateEmojiSelect(id) {
 function onEmojiSelectChange(prefix) {
   const sel = document.getElementById(prefix + '-emoji-select');
   const txt = document.getElementById(prefix + '-emoji-text');
-  txt.style.display = sel.value === '__unicode__' ? 'block' : 'none';
-  if (sel.value !== '__unicode__') txt.value = '';
+  const btn = document.getElementById(prefix + '-emoji-picker-btn');
+  const isUnicode = sel.value === '__unicode__';
+  txt.style.display = isUnicode ? 'block' : 'none';
+  if (btn) btn.style.display = isUnicode ? 'inline-flex' : 'none';
+  if (!isUnicode) {
+    txt.value = '';
+    const picker = document.getElementById(prefix + '-emoji-picker');
+    if (picker) picker.style.display = 'none';
+  }
+}
+
+// よく使う共通絵文字
+const COMMON_EMOJIS = [
+  '🎮','🕹️','🎯','🎲','♟️','🏆','🥇','🎖️',
+  '🎧','🎵','🎤','🎬','📺','📷','🎥',
+  '💻','🖥️','⌨️','🖱️','📱','💾','🔌',
+  '💼','📚','✏️','📝','📋','🗂️','🔍',
+  '☕','🍵','🍕','🍜',
+  '😴','💤','🏃','🚶','🤔','👀','✅','❌',
+  '⭐','🔥','💙','❤️','💚','💛',
+  '🟢','🔴','🟡','🔵','🟠','⚪',
+  '⚙️','🛠️','🔧','🔨','🚀','⚡','🌙','☀️',
+];
+
+function buildEmojiPicker(prefix) {
+  const picker = document.getElementById(prefix + '-emoji-picker');
+  if (!picker || picker.dataset.built) return;
+  picker.dataset.built = '1';
+  COMMON_EMOJIS.forEach(em => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = em;
+    btn.title = em;
+    btn.onclick = () => {
+      document.getElementById(prefix + '-emoji-text').value = em;
+      picker.style.display = 'none';
+    };
+    picker.appendChild(btn);
+  });
+}
+
+function toggleEmojiPicker(prefix) {
+  const picker = document.getElementById(prefix + '-emoji-picker');
+  if (!picker) return;
+  buildEmojiPicker(prefix);
+  picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
 }
 
 /** 絵文字セレクタから最終的な絵文字文字列を取得 */
@@ -370,6 +425,8 @@ function openEditVR(item) {
 // ── Modal ─────────────────────────────────────────────────────────────────
 function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
+  document.getElementById('modal-sr-fields').style.display = 'none';
+  document.getElementById('modal-nc-fields').style.display = 'none';
   editMode = null;
   editId = null;
 }
@@ -381,7 +438,31 @@ function onOverlayClick(e) {
 async function saveEdit() {
   if (!editMode || !editId) return;
   try {
-    if (editMode === 'rr') {
+    if (editMode === 'sr') {
+      const channel_id = document.getElementById('modal-sr-channel').value;
+      const message_id = document.getElementById('modal-sr-message').value.trim();
+      const emoji = getEmojiValue('modal-sr');
+      const role_id = document.getElementById('modal-sr-role').value;
+      const label = document.getElementById('modal-sr-label').value.trim();
+      if (!channel_id || !message_id || !emoji || !role_id) {
+        toast('必須項目を入力してください', 'error'); return;
+      }
+      await api(`/api/status-roles/${editId}`, 'PUT', { channel_id, message_id, emoji, role_id, label: label || null });
+      await loadStatusRoles();
+    } else if (editMode === 'nc') {
+      const user_id = document.getElementById('modal-nc-user-id').value.trim();
+      const nickname = document.getElementById('modal-nc-nickname').value.trim();
+      const voice_channel_id = document.getElementById('modal-nc-voice-channel').value;
+      const channel_id = document.getElementById('modal-nc-channel').value;
+      const message_id = document.getElementById('modal-nc-message').value.trim();
+      const emoji = getEmojiValue('modal-nc');
+      const label = document.getElementById('modal-nc-label').value.trim();
+      if (!user_id || !nickname || !voice_channel_id || !channel_id || !message_id || !emoji) {
+        toast('必須項目を入力してください', 'error'); return;
+      }
+      await api(`/api/nicknames/${editId}`, 'PUT', { user_id, nickname, voice_channel_id, channel_id, message_id, emoji, label: label || null });
+      await loadNicknameConfigs();
+    } else if (editMode === 'rr') {
       const channel_id = document.getElementById('modal-rr-channel').value;
       const message_id = document.getElementById('modal-rr-message').value.trim();
       const emoji = getEmojiValue('modal-rr');
@@ -583,6 +664,81 @@ async function loadBotLogs(page) {
   `;
 }
 
+// ── Status Roles ──────────────────────────────────────────────────────────
+async function loadStatusRoles() {
+  const list = await api('/api/status-roles');
+  const el = document.getElementById('status-roles-list');
+  if (!list.length) { el.innerHTML = emptyState('ステータスロールはまだ設定されていません'); return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネル</th><th>メッセージID</th><th>ラベル</th><th></th></tr></thead>
+    <tbody>
+    ${list.map(r => `
+      <tr>
+        <td>${esc(r.emoji)}</td>
+        <td>${esc(roleName(r.role_id))}</td>
+        <td>${esc(channelName(r.channel_id))}</td>
+        <td class="mono">${r.message_id}</td>
+        <td>${esc(r.label || '—')}</td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditSR(${JSON.stringify(r).replace(/"/g,'&quot;')})">編集</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteStatusRole(${r.id})">削除</button>
+        </td>
+      </tr>
+    `).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function addStatusRole() {
+  const channel_id = document.getElementById('sr-channel').value;
+  const message_id = document.getElementById('sr-message').value.trim();
+  const emoji = getEmojiValue('sr');
+  const role_id = document.getElementById('sr-role').value;
+  const label = document.getElementById('sr-label').value.trim();
+  if (!channel_id || !message_id || !emoji || !role_id) {
+    toast('必須項目を入力してください', 'error'); return;
+  }
+  try {
+    await api('/api/status-roles', 'POST', { channel_id, message_id, emoji, role_id, label: label || null });
+    toast('追加しました', 'success');
+    document.getElementById('sr-channel').selectedIndex = 0;
+    document.getElementById('sr-message').value = '';
+    document.getElementById('sr-emoji-select').selectedIndex = 0;
+    document.getElementById('sr-emoji-text').value = '';
+    document.getElementById('sr-emoji-text').style.display = 'none';
+    document.getElementById('sr-role').selectedIndex = 0;
+    document.getElementById('sr-label').value = '';
+    await loadStatusRoles();
+  } catch (e) {
+    toast('追加失敗: ' + e, 'error');
+  }
+}
+
+function openEditSR(item) {
+  editMode = 'sr';
+  editId = item.id;
+  document.getElementById('modal-title').textContent = 'ステータスロール編集';
+  document.getElementById('modal-rr-fields').style.display = 'none';
+  document.getElementById('modal-vr-fields').style.display = 'none';
+  document.getElementById('modal-sr-fields').style.display = 'block';
+  document.getElementById('modal-nc-fields').style.display = 'none';
+
+  document.getElementById('modal-sr-channel').value = item.channel_id;
+  document.getElementById('modal-sr-message').value = item.message_id;
+  setEmojiValue('modal-sr', item.emoji);
+  document.getElementById('modal-sr-role').value = item.role_id;
+  document.getElementById('modal-sr-label').value = item.label || '';
+
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+async function deleteStatusRole(id) {
+  if (!confirm('削除しますか？')) return;
+  await api(`/api/status-roles/${id}`, 'DELETE');
+  toast('削除しました', 'success');
+  await loadStatusRoles();
+}
+
 // ── Nickname Changer ──────────────────────────────────────────────────────
 async function loadNicknameConfigs() {
   const list = await api('/api/nicknames');
@@ -599,7 +755,8 @@ async function loadNicknameConfigs() {
         <td>${esc(channelName(n.channel_id))}</td>
         <td>${esc(n.emoji)}</td>
         <td>${esc(n.label || '—')}</td>
-        <td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditNC(${JSON.stringify(n).replace(/"/g,'&quot;')})">編集</button>
           <button class="btn btn-danger btn-sm" onclick="deleteNicknameConfig_NC(${n.id})">削除</button>
         </td>
       </tr>
@@ -635,6 +792,26 @@ async function addNicknameConfig() {
   } catch (e) {
     toast('追加失敗: ' + e, 'error');
   }
+}
+
+function openEditNC(item) {
+  editMode = 'nc';
+  editId = item.id;
+  document.getElementById('modal-title').textContent = 'ニックネーム変更設定 編集';
+  document.getElementById('modal-rr-fields').style.display = 'none';
+  document.getElementById('modal-vr-fields').style.display = 'none';
+  document.getElementById('modal-sr-fields').style.display = 'none';
+  document.getElementById('modal-nc-fields').style.display = 'block';
+
+  document.getElementById('modal-nc-user-id').value = item.user_id;
+  document.getElementById('modal-nc-nickname').value = item.nickname;
+  document.getElementById('modal-nc-voice-channel').value = item.voice_channel_id;
+  document.getElementById('modal-nc-channel').value = item.channel_id;
+  document.getElementById('modal-nc-message').value = item.message_id;
+  setEmojiValue('modal-nc', item.emoji);
+  document.getElementById('modal-nc-label').value = item.label || '';
+
+  document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
 async function deleteNicknameConfig_NC(id) {

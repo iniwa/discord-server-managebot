@@ -8,6 +8,7 @@ import leaveLogsRouter from './routes/leaveLogs';
 import discordRouter from './routes/discord';
 import botLogsRouter from './routes/botLogs';
 import nicknamesRouter from './routes/nicknames';
+import statusRolesRouter from './routes/statusRoles';
 
 export function createApp(): express.Application {
   const app = express();
@@ -23,6 +24,7 @@ export function createApp(): express.Application {
   app.use('/api/discord', discordRouter);
   app.use('/api/bot-logs', botLogsRouter);
   app.use('/api/nicknames', nicknamesRouter);
+  app.use('/api/status-roles', statusRolesRouter);
 
   return app;
 }

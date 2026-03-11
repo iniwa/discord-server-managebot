@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadMembers(),
     loadLeaveLog(),
     loadBotLogs(),
-    loadNicknameConfigs(),
   ]);
 });
 
@@ -72,18 +71,11 @@ function populateAllSelects() {
   populateEmojiSelect('modal-rr-emoji-select');
   populateEmojiSelect('sr-emoji-select');
   populateEmojiSelect('modal-sr-emoji-select');
-  populateEmojiSelect('nc-emoji-select');
-  populateEmojiSelect('modal-nc-emoji-select');
-
   populateRoleSelect('sr-role');
   populateRoleSelect('modal-sr-role');
 
   populateChannelSelect('sr-channel', false);
   populateChannelSelect('modal-sr-channel', false);
-  populateChannelSelect('nc-voice-channel', true);
-  populateChannelSelect('nc-channel', false);
-  populateChannelSelect('modal-nc-voice-channel', true);
-  populateChannelSelect('modal-nc-channel', false);
 }
 
 function populateRoleSelect(id) {
@@ -426,7 +418,6 @@ function openEditVR(item) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
   document.getElementById('modal-sr-fields').style.display = 'none';
-  document.getElementById('modal-nc-fields').style.display = 'none';
   editMode = null;
   editId = null;
 }
@@ -449,19 +440,6 @@ async function saveEdit() {
       }
       await api(`/api/status-roles/${editId}`, 'PUT', { channel_id, message_id, emoji, role_id, label: label || null });
       await loadStatusRoles();
-    } else if (editMode === 'nc') {
-      const user_id = document.getElementById('modal-nc-user-id').value.trim();
-      const nickname = document.getElementById('modal-nc-nickname').value.trim();
-      const voice_channel_id = document.getElementById('modal-nc-voice-channel').value;
-      const channel_id = document.getElementById('modal-nc-channel').value;
-      const message_id = document.getElementById('modal-nc-message').value.trim();
-      const emoji = getEmojiValue('modal-nc');
-      const label = document.getElementById('modal-nc-label').value.trim();
-      if (!user_id || !nickname || !voice_channel_id || !channel_id || !message_id || !emoji) {
-        toast('必須項目を入力してください', 'error'); return;
-      }
-      await api(`/api/nicknames/${editId}`, 'PUT', { user_id, nickname, voice_channel_id, channel_id, message_id, emoji, label: label || null });
-      await loadNicknameConfigs();
     } else if (editMode === 'rr') {
       const channel_id = document.getElementById('modal-rr-channel').value;
       const message_id = document.getElementById('modal-rr-message').value.trim();
@@ -721,7 +699,6 @@ function openEditSR(item) {
   document.getElementById('modal-rr-fields').style.display = 'none';
   document.getElementById('modal-vr-fields').style.display = 'none';
   document.getElementById('modal-sr-fields').style.display = 'block';
-  document.getElementById('modal-nc-fields').style.display = 'none';
 
   document.getElementById('modal-sr-channel').value = item.channel_id;
   document.getElementById('modal-sr-message').value = item.message_id;
@@ -737,88 +714,6 @@ async function deleteStatusRole(id) {
   await api(`/api/status-roles/${id}`, 'DELETE');
   toast('削除しました', 'success');
   await loadStatusRoles();
-}
-
-// ── Nickname Changer ──────────────────────────────────────────────────────
-async function loadNicknameConfigs() {
-  const list = await api('/api/nicknames');
-  const el = document.getElementById('nickname-configs-list');
-  if (!list.length) { el.innerHTML = emptyState('ニックネーム変更設定はまだありません'); return; }
-  el.innerHTML = `<table>
-    <thead><tr><th>ユーザーID</th><th>変更後</th><th>ボイスCH</th><th>テキストCH</th><th>絵文字</th><th>ラベル</th><th></th></tr></thead>
-    <tbody>
-    ${list.map(n => `
-      <tr>
-        <td class="mono">${esc(n.user_id)}</td>
-        <td><strong>${esc(n.nickname)}</strong></td>
-        <td>${esc(channelName(n.voice_channel_id))}</td>
-        <td>${esc(channelName(n.channel_id))}</td>
-        <td>${esc(n.emoji)}</td>
-        <td>${esc(n.label || '—')}</td>
-        <td style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm" onclick="openEditNC(${JSON.stringify(n).replace(/"/g,'&quot;')})">編集</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteNicknameConfig_NC(${n.id})">削除</button>
-        </td>
-      </tr>
-    `).join('')}
-    </tbody>
-  </table>`;
-}
-
-async function addNicknameConfig() {
-  const user_id = document.getElementById('nc-user-id').value.trim();
-  const nickname = document.getElementById('nc-nickname').value.trim();
-  const voice_channel_id = document.getElementById('nc-voice-channel').value;
-  const channel_id = document.getElementById('nc-channel').value;
-  const message_id = document.getElementById('nc-message').value.trim();
-  const emoji = getEmojiValue('nc');
-  const label = document.getElementById('nc-label').value.trim();
-  if (!user_id || !nickname || !voice_channel_id || !channel_id || !message_id || !emoji) {
-    toast('必須項目を入力してください', 'error'); return;
-  }
-  try {
-    await api('/api/nicknames', 'POST', { user_id, nickname, voice_channel_id, channel_id, message_id, emoji, label: label || null });
-    toast('追加しました', 'success');
-    document.getElementById('nc-user-id').value = '';
-    document.getElementById('nc-nickname').value = '';
-    document.getElementById('nc-voice-channel').selectedIndex = 0;
-    document.getElementById('nc-channel').selectedIndex = 0;
-    document.getElementById('nc-message').value = '';
-    document.getElementById('nc-emoji-select').selectedIndex = 0;
-    document.getElementById('nc-emoji-text').value = '';
-    document.getElementById('nc-emoji-text').style.display = 'none';
-    document.getElementById('nc-label').value = '';
-    await loadNicknameConfigs();
-  } catch (e) {
-    toast('追加失敗: ' + e, 'error');
-  }
-}
-
-function openEditNC(item) {
-  editMode = 'nc';
-  editId = item.id;
-  document.getElementById('modal-title').textContent = 'ニックネーム変更設定 編集';
-  document.getElementById('modal-rr-fields').style.display = 'none';
-  document.getElementById('modal-vr-fields').style.display = 'none';
-  document.getElementById('modal-sr-fields').style.display = 'none';
-  document.getElementById('modal-nc-fields').style.display = 'block';
-
-  document.getElementById('modal-nc-user-id').value = item.user_id;
-  document.getElementById('modal-nc-nickname').value = item.nickname;
-  document.getElementById('modal-nc-voice-channel').value = item.voice_channel_id;
-  document.getElementById('modal-nc-channel').value = item.channel_id;
-  document.getElementById('modal-nc-message').value = item.message_id;
-  setEmojiValue('modal-nc', item.emoji);
-  document.getElementById('modal-nc-label').value = item.label || '';
-
-  document.getElementById('modal-overlay').classList.remove('hidden');
-}
-
-async function deleteNicknameConfig_NC(id) {
-  if (!confirm('削除しますか？')) return;
-  await api(`/api/nicknames/${id}`, 'DELETE');
-  toast('削除しました', 'success');
-  await loadNicknameConfigs();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────

@@ -1,7 +1,6 @@
 import { Client, Events, VoiceState } from 'discord.js';
 import { getVoiceRolesByChannel } from '../../db/queries/voiceRoles';
 import { listStatusRoles } from '../../db/queries/statusRoles';
-import { getActiveNickname, clearActiveNickname } from '../nicknameState';
 
 export function registerVoiceStateUpdate(client: Client): void {
   client.on(Events.VoiceStateUpdate, async (oldState: VoiceState, newState: VoiceState) => {
@@ -47,18 +46,6 @@ export function registerVoiceStateUpdate(client: Client): void {
             } catch {
               console.warn(`[StatusRole] Could not DM user ${member.id}`);
             }
-          }
-        }
-
-        // ニックネーム変更: 元に戻す
-        const activeNick = getActiveNickname(member.id);
-        if (activeNick) {
-          try {
-            await member.setNickname(activeNick.originalNick, 'NicknameChanger: left voice');
-            clearActiveNickname(member.id);
-            console.log(`[NicknameChanger] Reverted nickname for ${member.user.username} on voice disconnect`);
-          } catch (err) {
-            console.warn(`[NicknameChanger] Could not revert nickname for ${member.id}:`, err);
           }
         }
       }

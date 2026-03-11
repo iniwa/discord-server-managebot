@@ -2,7 +2,6 @@ import { Client, Events, MessageReaction, PartialMessageReaction, PartialUser, U
 import { getReactionRole } from '../../db/queries/reactionRoles';
 import { getStatusRole } from '../../db/queries/statusRoles';
 import { insertBotLog } from '../../db/queries/botLogs';
-import { handleNicknameReaction } from './nicknameReaction';
 
 export function registerMessageReactionAdd(client: Client): void {
   client.on(
@@ -17,9 +16,6 @@ export function registerMessageReactionAdd(client: Client): void {
         const emoji = reaction.emoji.id
           ? `<:${reaction.emoji.name}:${reaction.emoji.id}>`
           : (reaction.emoji.name ?? '');
-
-        // ── ニックネーム変更 ──────────────────────────────────────────
-        await handleNicknameReaction(reaction, user);
 
         const guild = reaction.message.guild;
         if (!guild) return;
@@ -41,6 +37,15 @@ export function registerMessageReactionAdd(client: Client): void {
               console.warn(`[StatusRole] Could not DM user ${user.id}`);
             }
           } else {
+            if (!member.voice.channelId) {
+              console.log(`[StatusRole] Skipped: ${(user as User).username} is not in a voice channel`);
+              try {
+                await (user as User).send(`**${guild.name}** のステータスロール **${roleName}** を付与するには、通話に参加している必要があります。`);
+              } catch {
+                console.warn(`[StatusRole] Could not DM user ${user.id}`);
+              }
+              return;
+            }
             await member.roles.add(statusConfig.role_id);
             console.log(`[StatusRole] Added role ${roleName} to ${(user as User).username}`);
             try {

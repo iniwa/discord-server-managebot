@@ -87,19 +87,5 @@ export function runMigrations(db: Database.Database): void {
       created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       UNIQUE(message_id, emoji)
     );
-
-    CREATE TABLE IF NOT EXISTS nickname_configs (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      guild_id         TEXT NOT NULL,
-      user_id          TEXT NOT NULL,
-      voice_channel_id TEXT NOT NULL,
-      channel_id       TEXT NOT NULL,
-      message_id       TEXT NOT NULL,
-      emoji            TEXT NOT NULL,
-      nickname         TEXT NOT NULL,
-      label            TEXT,
-      created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-      UNIQUE(message_id, emoji, user_id)
-    );
   `);
 }

@@ -1,6 +1,7 @@
 import { Client, Events, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
 import { getReactionRole } from '../../db/queries/reactionRoles';
 import { insertBotLog } from '../../db/queries/botLogs';
+import { handleNicknameReaction } from './nicknameReaction';
 
 export function registerMessageReactionAdd(client: Client): void {
   client.on(
@@ -16,6 +17,10 @@ export function registerMessageReactionAdd(client: Client): void {
           ? `<:${reaction.emoji.name}:${reaction.emoji.id}>`
           : (reaction.emoji.name ?? '');
 
+        // ── ニックネーム変更 ──────────────────────────────────────────
+        await handleNicknameReaction(reaction, user);
+
+        // ── リアクションロール ─────────────────────────────────────────
         const config = getReactionRole(reaction.message.id, emoji);
         if (!config) return;
 

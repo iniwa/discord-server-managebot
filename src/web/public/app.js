@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadMembers(),
     loadLeaveLog(),
     loadBotLogs(),
+    loadNicknameConfigs(),
   ]);
 });
 
@@ -68,6 +69,10 @@ function populateAllSelects() {
 
   populateEmojiSelect('rr-emoji-select');
   populateEmojiSelect('modal-rr-emoji-select');
+  populateEmojiSelect('nc-emoji-select');
+
+  populateChannelSelect('nc-voice-channel', true);   // VCのみ
+  populateChannelSelect('nc-channel', false);        // テキスト含む全チャンネル
 }
 
 function populateRoleSelect(id) {
@@ -576,6 +581,67 @@ async function loadBotLogs(page) {
     <span style="color:var(--text-muted);font-size:13px;">${botLogPage} / ${totalPages}</span>
     <button class="btn btn-ghost btn-sm" ${botLogPage >= totalPages ? 'disabled' : ''} onclick="loadBotLogs(${botLogPage + 1})">→</button>
   `;
+}
+
+// ── Nickname Changer ──────────────────────────────────────────────────────
+async function loadNicknameConfigs() {
+  const list = await api('/api/nicknames');
+  const el = document.getElementById('nickname-configs-list');
+  if (!list.length) { el.innerHTML = emptyState('ニックネーム変更設定はまだありません'); return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>ユーザーID</th><th>変更後</th><th>ボイスCH</th><th>テキストCH</th><th>絵文字</th><th>ラベル</th><th></th></tr></thead>
+    <tbody>
+    ${list.map(n => `
+      <tr>
+        <td class="mono">${esc(n.user_id)}</td>
+        <td><strong>${esc(n.nickname)}</strong></td>
+        <td>${esc(channelName(n.voice_channel_id))}</td>
+        <td>${esc(channelName(n.channel_id))}</td>
+        <td>${esc(n.emoji)}</td>
+        <td>${esc(n.label || '—')}</td>
+        <td>
+          <button class="btn btn-danger btn-sm" onclick="deleteNicknameConfig_NC(${n.id})">削除</button>
+        </td>
+      </tr>
+    `).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function addNicknameConfig() {
+  const user_id = document.getElementById('nc-user-id').value.trim();
+  const nickname = document.getElementById('nc-nickname').value.trim();
+  const voice_channel_id = document.getElementById('nc-voice-channel').value;
+  const channel_id = document.getElementById('nc-channel').value;
+  const message_id = document.getElementById('nc-message').value.trim();
+  const emoji = getEmojiValue('nc');
+  const label = document.getElementById('nc-label').value.trim();
+  if (!user_id || !nickname || !voice_channel_id || !channel_id || !message_id || !emoji) {
+    toast('必須項目を入力してください', 'error'); return;
+  }
+  try {
+    await api('/api/nicknames', 'POST', { user_id, nickname, voice_channel_id, channel_id, message_id, emoji, label: label || null });
+    toast('追加しました', 'success');
+    document.getElementById('nc-user-id').value = '';
+    document.getElementById('nc-nickname').value = '';
+    document.getElementById('nc-voice-channel').selectedIndex = 0;
+    document.getElementById('nc-channel').selectedIndex = 0;
+    document.getElementById('nc-message').value = '';
+    document.getElementById('nc-emoji-select').selectedIndex = 0;
+    document.getElementById('nc-emoji-text').value = '';
+    document.getElementById('nc-emoji-text').style.display = 'none';
+    document.getElementById('nc-label').value = '';
+    await loadNicknameConfigs();
+  } catch (e) {
+    toast('追加失敗: ' + e, 'error');
+  }
+}
+
+async function deleteNicknameConfig_NC(id) {
+  if (!confirm('削除しますか？')) return;
+  await api(`/api/nicknames/${id}`, 'DELETE');
+  toast('削除しました', 'success');
+  await loadNicknameConfigs();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────

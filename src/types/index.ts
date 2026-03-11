@@ -59,6 +59,19 @@ export interface BotLog {
   created_at: string;
 }
 
+export interface NicknameConfig {
+  id: number;
+  guild_id: string;
+  user_id: string;
+  voice_channel_id: string;
+  channel_id: string;
+  message_id: string;
+  emoji: string;
+  nickname: string;
+  label: string | null;
+  created_at: string;
+}
+
 export interface LeaveLog {
   id: number;
   guild_id: string;

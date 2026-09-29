@@ -41,11 +41,6 @@ export function registerVoiceStateUpdate(client: Client): void {
             await member.roles.remove(config.role_id);
             const roleName = guild.roles.cache.get(config.role_id)?.name ?? config.role_id;
             console.log(`[StatusRole] Removed role ${roleName} from ${member.user.username} on voice disconnect`);
-            try {
-              await member.user.send(`**${guild.name}** の通話から退出したため、ステータスロール **${roleName}** が外れました。`);
-            } catch {
-              console.warn(`[StatusRole] Could not DM user ${member.id}`);
-            }
           }
         }
       }

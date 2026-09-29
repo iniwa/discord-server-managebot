@@ -89,7 +89,7 @@ export function runMigrations(db: Database.Database): void {
     );
   `);
 
-  // 既存の設定・履歴を保持し、付与時のDMは従来どおり有効にする。
+  // 旧バージョンとのスキーマ互換性のため保持する。DM送信には使用しない。
   db.transaction(() => {
     for (const table of ['reaction_roles', 'status_roles']) {
       const columns = db.pragma(`table_info(${table})`) as { name: string }[];

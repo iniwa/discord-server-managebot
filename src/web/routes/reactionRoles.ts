@@ -1,99 +1,90 @@
+import { randomUUID } from 'crypto';
 import { Router } from 'express';
-import { GuildTextBasedChannel } from 'discord.js';
 import {
   listReactionRoles,
   createReactionRole,
   updateReactionRole,
   deleteReactionRole,
 } from '../../db/queries/reactionRoles';
-import { getClient } from '../../bot/index';
+import { publishRoleButton } from '../../bot/roleButtons';
 
 const router = Router();
 const GUILD_ID = process.env.DISCORD_GUILD_ID!;
+
+function fields(body: unknown) {
+  if (!body || typeof body !== 'object') return null;
+  const { channel_id, emoji, role_id, label } = body as Record<string, unknown>;
+  if (typeof channel_id !== 'string' || !channel_id.trim()
+    || typeof emoji !== 'string' || !emoji.trim()
+    || typeof role_id !== 'string' || !role_id.trim()
+    || (label !== undefined && label !== null && typeof label !== 'string')) return null;
+  return { channel_id: channel_id.trim(), emoji: emoji.trim(), role_id: role_id.trim(), label: typeof label === 'string' ? label : null };
+}
+
+function findConfig(rawId: string) {
+  if (!/^[1-9]\d*$/.test(rawId)) return undefined;
+  return listReactionRoles(GUILD_ID).find((config) => config.id === Number(rawId));
+}
 
 router.get('/', (_req, res) => {
   res.json(listReactionRoles(GUILD_ID));
 });
 
 router.post('/', async (req, res) => {
-  const { channel_id, message_id, emoji, role_id, label, dm_on_add } = req.body;
-  if (dm_on_add !== undefined && dm_on_add !== 0 && dm_on_add !== 1) {
-    return res.status(400).json({ error: 'dm_on_add must be 0 or 1' });
-  }
-  if (!channel_id || !message_id || !emoji || !role_id) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  const data = fields(req.body);
+  if (!data) return res.status(400).json({ error: 'Invalid required fields' });
+  let id: number;
+  try {
+    id = createReactionRole({ guild_id: GUILD_ID, ...data, message_id: randomUUID() });
+  } catch {
+    return res.status(409).json({ error: 'Could not save role configuration' });
   }
   try {
-    const id = createReactionRole({
-      guild_id: GUILD_ID,
-      channel_id,
-      message_id,
-      emoji,
-      role_id,
-      label: label ?? null,
-      dm_on_add: dm_on_add ?? 1,
-    });
-
-    // 設定後、BOTが対象メッセージにリアクションを付与する
-    try {
-      const client = getClient();
-      const channel = await client.channels.fetch(channel_id);
-      if (channel && channel.isTextBased() && !channel.isDMBased()) {
-        const msg = await (channel as GuildTextBasedChannel).messages.fetch(message_id);
-        await msg.react(emoji);
-        console.log(`[ReactionRole] Bot reacted ${emoji} on message ${message_id}`);
-      }
-    } catch (err) {
-      console.warn('[ReactionRole] Could not add bot reaction:', err);
-    }
-
+    const config = listReactionRoles(GUILD_ID).find((entry) => entry.id === id)!;
+    await publishRoleButton('reaction', config);
     return res.status(201).json({ id });
-  } catch (err) {
-    return res.status(409).json({ error: 'Duplicate entry' });
+  } catch {
+    deleteReactionRole(id);
+    return res.status(502).json({ error: 'ボタンを投稿できませんでした。チャンネル・ロール・Botの権限を確認してください。設定は作成されていません。' });
   }
 });
 
-router.put('/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const { channel_id, message_id, emoji, role_id, label, dm_on_add } = req.body;
-  if (dm_on_add !== undefined && dm_on_add !== 0 && dm_on_add !== 1) {
-    return res.status(400).json({ error: 'dm_on_add must be 0 or 1' });
-  }
-  updateReactionRole(id, {
-    channel_id, message_id, emoji, role_id, label,
-    ...(dm_on_add === undefined ? {} : { dm_on_add }),
-  });
-  res.json({ ok: true });
-});
-
-router.delete('/:id', async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-
-  // 削除前にBOTのリアクションを除去する
+router.put('/:id', async (req, res) => {
+  const config = findConfig(req.params.id);
+  if (!config) return res.status(404).json({ error: 'Role configuration not found' });
+  const data = fields(req.body);
+  if (!data) return res.status(400).json({ error: 'Invalid required fields' });
+  const message_id = randomUUID();
   try {
-    const all = listReactionRoles(GUILD_ID);
-    const config = all.find((r) => r.id === id);
-    if (config) {
-      const client = getClient();
-      const channel = await client.channels.fetch(config.channel_id);
-      if (channel && channel.isTextBased() && !channel.isDMBased()) {
-        const msg = await (channel as GuildTextBasedChannel).messages.fetch(config.message_id);
-        const botReaction = msg.reactions.cache.find((r) => {
-          const emojiStr = r.emoji.id
-            ? `<:${r.emoji.name}:${r.emoji.id}>`
-            : r.emoji.name;
-          return emojiStr === config.emoji;
-        });
-        if (botReaction) await botReaction.users.remove(client.user!.id);
-        console.log(`[ReactionRole] Bot removed reaction ${config.emoji} from message ${config.message_id}`);
-      }
-    }
-  } catch (err) {
-    console.warn('[ReactionRole] Could not remove bot reaction:', err);
+    // Invalidate the old button before publishing, including when publishing fails.
+    updateReactionRole(config.id, { ...data, message_id });
+  } catch {
+    return res.status(409).json({ error: 'Could not save role configuration' });
   }
+  try {
+    await publishRoleButton('reaction', { ...config, ...data, message_id });
+    return res.json({ ok: true });
+  } catch {
+    return res.status(502).json({ error: '設定は保存しましたが、ボタンを投稿できませんでした。チャンネル・ロール・Botの権限を確認し、再投稿してください。' });
+  }
+});
 
-  deleteReactionRole(id);
-  res.status(204).send();
+router.post('/:id/publish', async (req, res) => {
+  const config = findConfig(req.params.id);
+  if (!config) return res.status(404).json({ error: 'Role configuration not found' });
+  try {
+    const message_id = await publishRoleButton('reaction', config);
+    return res.json({ ok: true, message_id });
+  } catch {
+    return res.status(502).json({ error: 'ボタンを投稿できませんでした。チャンネル・ロール・Botの権限を確認してください。' });
+  }
+});
+
+router.delete('/:id', (req, res) => {
+  const config = findConfig(req.params.id);
+  if (!config) return res.status(404).json({ error: 'Role configuration not found' });
+  deleteReactionRole(config.id);
+  return res.status(204).send();
 });
 
 export default router;

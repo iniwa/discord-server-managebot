@@ -1,4 +1,4 @@
-import { Client, Events, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
+import { Client, ComponentType, Events, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
 import { getReactionRole } from '../../db/queries/reactionRoles';
 import { getStatusRole } from '../../db/queries/statusRoles';
 import { insertBotLog } from '../../db/queries/botLogs';
@@ -12,6 +12,9 @@ export function registerMessageReactionAdd(client: Client): void {
       try {
         if (reaction.partial) await reaction.fetch();
         if (user.partial) await user.fetch();
+        // 新しいボタン投稿はボタン操作だけを受け付ける。旧設定は移行まで維持する。
+        if ((reaction.message.components ?? []).some((row) => row.type === ComponentType.ActionRow &&
+          row.components.some((component) => component.type === ComponentType.Button && component.customId?.startsWith('role:')))) return;
 
         const emoji = reaction.emoji.id
           ? `<:${reaction.emoji.name}:${reaction.emoji.id}>`
@@ -31,30 +34,13 @@ export function registerMessageReactionAdd(client: Client): void {
           if (hasRole) {
             await member.roles.remove(statusConfig.role_id);
             console.log(`[StatusRole] Removed role ${roleName} from ${(user as User).username}`);
-            try {
-              await (user as User).send(`**${guild.name}** のステータスロール **${roleName}** が外れました。`);
-            } catch {
-              console.warn(`[StatusRole] Could not DM user ${user.id}`);
-            }
           } else {
             if (!member.voice.channelId) {
               console.log(`[StatusRole] Skipped: ${(user as User).username} is not in a voice channel`);
-              try {
-                await (user as User).send(`**${guild.name}** のステータスロール **${roleName}** を付与するには、通話に参加している必要があります。`);
-              } catch {
-                console.warn(`[StatusRole] Could not DM user ${user.id}`);
-              }
               return;
             }
             await member.roles.add(statusConfig.role_id);
             console.log(`[StatusRole] Added role ${roleName} to ${(user as User).username}`);
-            if (statusConfig.dm_on_add) {
-              try {
-                await (user as User).send(`**${guild.name}** でステータスロール **${roleName}** が付与されました。通話から退出すると自動的に外れます。`);
-              } catch {
-                console.warn(`[StatusRole] Could not DM user ${user.id}`);
-              }
-            }
           }
           return;
         }
@@ -80,11 +66,6 @@ export function registerMessageReactionAdd(client: Client): void {
             message_id: reaction.message.id,
             emoji,
           });
-          try {
-            await (user as User).send(`**${guild.name}** のロール **${roleName}** が剥奪されました。`);
-          } catch {
-            console.warn(`[ReactionRole] Could not DM user ${user.id}`);
-          }
         } else {
           await member.roles.add(config.role_id);
           console.log(`[ReactionRole] Added role ${roleName} to ${(user as User).username}`);
@@ -98,13 +79,6 @@ export function registerMessageReactionAdd(client: Client): void {
             message_id: reaction.message.id,
             emoji,
           });
-          if (config.dm_on_add) {
-            try {
-              await (user as User).send(`**${guild.name}** でロール **${roleName}** が付与されました。`);
-            } catch {
-              console.warn(`[ReactionRole] Could not DM user ${user.id}`);
-            }
-          }
         }
       } catch (err) {
         console.error('[ReactionRole] Error on reaction add:', err);

@@ -19,7 +19,7 @@
   </header>
 
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="reaction-roles">リアクションロール</button>
+    <button class="tab-btn active" data-tab="reaction-roles">ボタンロール</button>
     <button class="tab-btn" data-tab="voice-roles">VCロール</button>
     <button class="tab-btn" data-tab="status-roles">ステータスロール</button>
     <button class="tab-btn" data-tab="snapshots">ロールスナップショット</button>
@@ -52,15 +52,12 @@
   <!-- Reaction Roles Tab -->
   <div class="tab-panel active" id="tab-reaction-roles">
     <div class="card">
-      <div class="card-header"><h2>リアクションロール追加</h2></div>
+      <div class="card-header"><h2>ボタンロール追加</h2></div>
+      <p style="margin-bottom:16px;color:var(--text-muted);">指定チャンネルに操作ボタンを投稿します。結果は押した本人だけに表示し、DMは送りません。</p>
       <div class="form-row">
         <div class="form-group">
           <label>チャンネル</label>
           <select id="rr-channel"><option value="">-- チャンネル選択 --</option></select>
-        </div>
-        <div class="form-group">
-          <label>メッセージID</label>
-          <input type="text" id="rr-message" placeholder="メッセージID" />
         </div>
         <div class="form-group">
           <label>絵文字</label>
@@ -78,19 +75,12 @@
           <label>ラベル (任意)</label>
           <input type="text" id="rr-label" placeholder="説明" />
         </div>
-        <div class="form-group" style="margin-top:10px;">
-          <label for="rr-dm-on-add">付与時のDM</label>
-          <select id="rr-dm-on-add" aria-describedby="rr-dm-help">
-            <option value="1">送る</option>
-            <option value="0">送らない</option>
-          </select>
-          <small id="rr-dm-help" style="color:var(--text-muted);">解除時などの通知は対象外です。</small>
-        </div>
-        <button class="btn btn-primary" onclick="addReactionRole()" style="margin-bottom:0;">追加</button>
+        <button class="btn btn-primary" onclick="addReactionRole()" style="margin-bottom:0;">追加して投稿</button>
       </div>
     </div>
     <div class="card">
       <h2 style="margin-bottom:16px;">設定一覧</h2>
+      <p style="margin-bottom:12px;color:var(--text-muted);">既存のリアクション設定は「ボタンを再投稿」で移行できます。編集保存・再投稿後は以前のボタンが無効になります。</p>
       <div id="reaction-roles-list"></div>
     </div>
   </div>
@@ -178,16 +168,12 @@
     <div class="card">
       <div class="card-header"><h2>ステータスロール追加</h2></div>
       <p style="margin-bottom:16px;color:var(--text-muted);font-size:13px;">
-        📌 リアクションでロールを付与・剥奪します。<strong>通話から完全退出すると自動的にロールが外れます。</strong>サーバーオーナーも利用可能です。
+        📌 ボタンでロールを付与・解除します。操作結果は本人だけに表示します。<strong>通話から完全退出すると自動的にロールが外れます。</strong>サーバーオーナーも利用可能です。
       </p>
       <div class="form-row">
         <div class="form-group">
           <label>チャンネル</label>
           <select id="sr-channel"><option value="">-- チャンネル選択 --</option></select>
-        </div>
-        <div class="form-group">
-          <label>メッセージID</label>
-          <input type="text" id="sr-message" placeholder="メッセージID" />
         </div>
         <div class="form-group">
           <label>絵文字</label>
@@ -209,19 +195,12 @@
           <label>ラベル (任意)</label>
           <input type="text" id="sr-label" placeholder="例: ゲーム中" />
         </div>
-        <div class="form-group" style="margin-top:10px;">
-          <label for="sr-dm-on-add">付与時のDM</label>
-          <select id="sr-dm-on-add" aria-describedby="sr-dm-help">
-            <option value="1">送る</option>
-            <option value="0">送らない</option>
-          </select>
-          <small id="sr-dm-help" style="color:var(--text-muted);">解除時などの通知は対象外です。</small>
-        </div>
-        <button class="btn btn-primary" onclick="addStatusRole()" style="margin-bottom:0;">追加</button>
+        <button class="btn btn-primary" onclick="addStatusRole()" style="margin-bottom:0;">追加して投稿</button>
       </div>
     </div>
     <div class="card">
       <h2 style="margin-bottom:16px;">設定一覧</h2>
+      <p style="margin-bottom:12px;color:var(--text-muted);">既存設定は「ボタンを再投稿」で移行できます。編集保存・再投稿後は以前のボタンが無効になります。</p>
       <div id="status-roles-list"></div>
     </div>
   </div>
@@ -242,10 +221,6 @@
             <select id="modal-rr-channel"><option value="">-- チャンネル選択 --</option></select>
           </div>
           <div class="form-group" style="margin-bottom:10px;">
-            <label>メッセージID</label>
-            <input type="text" id="modal-rr-message" placeholder="メッセージID" />
-          </div>
-          <div class="form-group" style="margin-bottom:10px;">
             <label>絵文字</label>
             <select id="modal-rr-emoji-select" onchange="onEmojiSelectChange('modal-rr')">
               <option value="">-- 絵文字を選択 --</option>
@@ -261,14 +236,6 @@
             <label>ラベル (任意)</label>
             <input type="text" id="modal-rr-label" placeholder="説明" />
           </div>
-          <div class="form-group" style="margin-top:10px;">
-            <label for="modal-rr-dm-on-add">付与時のDM</label>
-            <select id="modal-rr-dm-on-add" aria-describedby="modal-rr-dm-help">
-              <option value="1">送る</option>
-              <option value="0">送らない</option>
-            </select>
-            <small id="modal-rr-dm-help" style="color:var(--text-muted);">解除時などの通知は対象外です。</small>
-          </div>
         </div>
 
         <!-- Status Role edit fields -->
@@ -276,10 +243,6 @@
           <div class="form-group" style="margin-bottom:10px;">
             <label>チャンネル</label>
             <select id="modal-sr-channel"><option value="">-- チャンネル選択 --</option></select>
-          </div>
-          <div class="form-group" style="margin-bottom:10px;">
-            <label>メッセージID</label>
-            <input type="text" id="modal-sr-message" placeholder="メッセージID" />
           </div>
           <div class="form-group" style="margin-bottom:10px;">
             <label>絵文字</label>
@@ -300,14 +263,6 @@
           <div class="form-group">
             <label>ラベル (任意)</label>
             <input type="text" id="modal-sr-label" placeholder="例: ゲーム中" />
-          </div>
-          <div class="form-group" style="margin-top:10px;">
-            <label for="modal-sr-dm-on-add">付与時のDM</label>
-            <select id="modal-sr-dm-on-add" aria-describedby="modal-sr-dm-help">
-              <option value="1">送る</option>
-              <option value="0">送らない</option>
-            </select>
-            <small id="modal-sr-dm-help" style="color:var(--text-muted);">解除時などの通知は対象外です。</small>
           </div>
         </div>
 

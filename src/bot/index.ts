@@ -1,4 +1,5 @@
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
+import { registerRoleButtonInteraction } from './events/roleButtonInteraction';
 import { registerReady } from './events/ready';
 import { registerMessageReactionAdd } from './events/messageReactionAdd';
 import { registerMessageReactionRemove } from './events/messageReactionRemove';
@@ -31,6 +32,7 @@ export async function startBot(token: string): Promise<Client> {
   });
 
   registerReady(client);
+  registerRoleButtonInteraction(client);
   registerMessageReactionAdd(client);
   registerMessageReactionRemove(client);
   registerVoiceStateUpdate(client);

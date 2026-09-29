@@ -8,6 +8,7 @@ import leaveLogsRouter from './routes/leaveLogs';
 import discordRouter from './routes/discord';
 import botLogsRouter from './routes/botLogs';
 import statusRolesRouter from './routes/statusRoles';
+import reactionChecksRouter from './routes/reactionChecks';
 
 export function createApp(): express.Application {
   const app = express();
@@ -23,6 +24,7 @@ export function createApp(): express.Application {
   app.use('/api/discord', discordRouter);
   app.use('/api/bot-logs', botLogsRouter);
   app.use('/api/status-roles', statusRolesRouter);
+  app.use('/api/reaction-checks', reactionChecksRouter);
 
   return app;
 }

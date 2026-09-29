@@ -2,6 +2,7 @@ import { Client, ComponentType, Events, MessageReaction, PartialMessageReaction,
 import { getReactionRole } from '../../db/queries/reactionRoles';
 import { getStatusRole } from '../../db/queries/statusRoles';
 import { insertBotLog } from '../../db/queries/botLogs';
+import { emojiKey, listReactionChecks } from '../../db/queries/reactionChecks';
 
 export function registerMessageReactionAdd(client: Client): void {
   client.on(
@@ -22,6 +23,9 @@ export function registerMessageReactionAdd(client: Client): void {
 
         const guild = reaction.message.guild;
         if (!guild) return;
+        // Read-confirmation reactions are retained; never toggle roles or remove them.
+        if (listReactionChecks(guild.id).some(check => check.channel_id === reaction.message.channelId
+          && check.message_id === reaction.message.id && check.emoji_key === emojiKey(emoji))) return;
         const member = await guild.members.fetch(user.id);
 
         // ── ステータスロール ───────────────────────────────────────────

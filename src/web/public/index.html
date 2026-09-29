@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Discord Server Manager</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=multi-role-buttons-3" />
+  <link rel="stylesheet" href="style.css?v=reaction-checks-1" />
 </head>
 <body>
   <header>
@@ -27,7 +27,36 @@
     <button class="tab-btn" data-tab="leave-log">退出ログ</button>
     <button class="tab-btn" data-tab="bot-log">BOTログ</button>
     <button class="tab-btn" data-tab="members">メンバー</button>
+    <button class="tab-btn" data-tab="reaction-checks">既読確認</button>
   </nav>
+
+  <section class="tab-panel" id="tab-reaction-checks">
+    <div class="role-page-heading"><div><h2>リアクションで既読確認</h2><p>案内メッセージへのリアクションを、ロールとは独立して集計します。</p></div></div>
+    <div class="role-workspace">
+      <form class="card role-composer" id="rc-form" novalidate>
+        <h3>集計するメッセージを登録</h3>
+        <p class="role-help">Discordに「読んだら ✅ を押してください」などの案内を投稿し、そのメッセージのリンクをコピーしてください。</p>
+        <fieldset id="rc-fields">
+          <div class="form-group"><label for="rc-label">管理用の名前</label><input id="rc-label" maxlength="100" placeholder="例: Read-meの確認" /></div>
+          <div class="form-group"><label for="rc-url">メッセージリンク <span class="required">必須</span></label><input id="rc-url" type="url" placeholder="https://discord.com/channels/…/…/…" required /><small>メッセージの右クリックメニューから「メッセージリンクをコピー」で取得できます。</small></div>
+          <div class="form-group"><label for="rc-emoji">集計する絵文字 <span class="required">必須</span></label><input id="rc-emoji" value="✅" maxlength="100" list="rc-emojis" required /><datalist id="rc-emojis"><option value="✅"></option><option value="👍"></option><option value="👀"></option></datalist><small>絵文字を1つ入力します。サーバー絵文字は候補から選べます。</small></div>
+          <button class="btn btn-primary" id="rc-submit" type="submit">登録して集計する</button>
+        </fieldset>
+        <div id="rc-feedback" class="role-feedback" role="status" aria-live="polite" hidden></div>
+      </form>
+      <div class="card"><h3>集計のルール</h3><p class="role-help">現在サーバーに参加している人を対象に、押した人・押していない人を表示します。Botは除外し、リアクションを外すと未反応に戻ります。</p><p class="role-help">日時はBotがリアクション追加を受信した時刻です。登録前やBot停止中のリアクションは、日時不明でも押した人に含めます。日時は別途保存します。</p><p class="role-help">登録時にBotが対象の絵文字を付けます。ロールの付与やDM送信はありません。</p></div>
+    </div>
+    <div class="card"><div class="card-header"><h2>登録済みの既読確認</h2><button type="button" class="btn btn-ghost btn-sm" id="rc-reload">一覧を更新</button></div><div id="rc-list" class="role-list" aria-live="polite"></div></div>
+    <div class="card" id="rc-detail" hidden>
+      <div class="card-header"><h2 id="rc-detail-title">集計結果</h2><button type="button" class="btn btn-primary" id="rc-sync">Discordと再同期</button></div>
+      <a id="rc-message-link" target="_blank" rel="noopener noreferrer">対象メッセージを開く ↗</a>
+      <p id="rc-sync-status" class="role-help"></p>
+      <div id="rc-detail-feedback" class="role-feedback" role="status" hidden></div>
+      <div id="rc-counts" class="check-counts"></div>
+      <div class="form-group"><label for="rc-search">名前・ユーザーIDで絞り込み</label><input id="rc-search" type="search" placeholder="表示名・ユーザー名・ID" /></div>
+      <div class="role-workspace check-results"><section><h3 id="rc-reacted-heading">押した人</h3><div id="rc-reacted" class="check-table"></div></section><section><h3 id="rc-pending-heading">押していない人</h3><div id="rc-pending" class="check-table"></div></section></div>
+    </div>
+  </section>
 
   <!-- Snapshots Tab -->
   <div class="tab-panel" id="tab-snapshots">
@@ -227,5 +256,6 @@
   </script>
   <script src="app.js?v=multi-role-buttons-3"></script>
   <script src="button-roles.js?v=multi-role-buttons-3"></script>
+  <script src="reaction-checks.js?v=reaction-checks-1"></script>
 </body>
 </html>

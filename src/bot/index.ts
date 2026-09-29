@@ -5,6 +5,7 @@ import { registerMessageReactionAdd } from './events/messageReactionAdd';
 import { registerMessageReactionRemove } from './events/messageReactionRemove';
 import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
 import { registerGuildMemberRemove } from './events/guildMemberRemove';
+import { registerReactionChecks } from './reactionChecks';
 
 let _client: Client | null = null;
 
@@ -32,6 +33,7 @@ export async function startBot(token: string): Promise<Client> {
   });
 
   registerReady(client);
+  registerReactionChecks(client);
   registerRoleButtonInteraction(client);
   registerMessageReactionAdd(client);
   registerMessageReactionRemove(client);

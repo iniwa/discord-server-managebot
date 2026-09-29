@@ -411,3 +411,10 @@ button:disabled { opacity: .55; cursor: wait; }
 .discord-button-rows { display: grid; gap: 8px; }
 .discord-button-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .discord-button-row .discord-button { padding: 8px 10px; font-size: 13px; }
+.check-counts { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+.check-results { margin-top: 24px; }
+.check-results h3 { margin-bottom: 12px; }
+.check-table { overflow: auto; max-height: 600px; }
+.check-table td { vertical-align: top; overflow-wrap: anywhere; }
+.check-member-meta { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+#rc-message-link { color: var(--accent); }

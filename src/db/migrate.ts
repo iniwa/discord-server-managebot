@@ -2,6 +2,28 @@ import Database from 'better-sqlite3';
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS reaction_checks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL, channel_id TEXT NOT NULL, message_id TEXT NOT NULL,
+      emoji TEXT NOT NULL, emoji_key TEXT NOT NULL, label TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      synced_at TEXT, UNIQUE(guild_id, channel_id, message_id, emoji_key)
+    );
+    CREATE TABLE IF NOT EXISTS reaction_check_members (
+      check_id INTEGER NOT NULL REFERENCES reaction_checks(id), user_id TEXT NOT NULL,
+      username TEXT NOT NULL, display_name TEXT NOT NULL, present INTEGER NOT NULL,
+      PRIMARY KEY(check_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS reaction_check_state (
+      check_id INTEGER NOT NULL REFERENCES reaction_checks(id), user_id TEXT NOT NULL,
+      reaction_type INTEGER NOT NULL, active INTEGER NOT NULL, reacted_at TEXT,
+      PRIMARY KEY(check_id, user_id, reaction_type)
+    );
+    CREATE TABLE IF NOT EXISTS reaction_check_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, check_id INTEGER NOT NULL REFERENCES reaction_checks(id),
+      user_id TEXT, reaction_type INTEGER, action TEXT NOT NULL, observed_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS reaction_check_events_check ON reaction_check_events(check_id, id);
     CREATE TABLE IF NOT EXISTS role_snapshots (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
       guild_id  TEXT NOT NULL,

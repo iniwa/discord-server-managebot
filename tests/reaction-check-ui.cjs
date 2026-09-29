@@ -10,8 +10,8 @@ const publicDir = path.join(__dirname, '..', 'src', 'web', 'public');
 const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const scripts = ['app.js', 'button-roles.js', 'reaction-checks.js'].map(name => fs.readFileSync(path.join(publicDir, name), 'utf8'));
 const checks = [
-  { id: 10, guild_id: '1', channel_id: '2', message_id: '3', emoji: '✅', label: 'Read chapter', synced_at: '2026-09-01T00:00:00.000Z' },
-  { id: 20, guild_id: '1', channel_id: '2', message_id: '4', emoji: '👀', label: 'Second check', synced_at: null },
+  { id: 10, guild_id: '1', channel_id: '2', message_id: '3', mode: 'specific', emoji: '✅', label: 'Read chapter', synced_at: '2026-09-01T00:00:00.000Z' },
+  { id: 20, guild_id: '1', channel_id: '2', message_id: '4', mode: 'specific', emoji: '👀', label: 'Second check', synced_at: null },
 ];
 const report = (id = 10, overrides = {}) => ({
   check: { ...checks.find(check => check.id === id), ...overrides.check },
@@ -69,6 +69,9 @@ function waitFor(predicate, message, timeout = 2000) {
 
 function fillForm(page, { url = 'https://discord.com/channels/1/2/3', emoji = '✅', label = 'Read this' } = {}) {
   page.document.getElementById('rc-url').value = url;
+  const mode = page.document.getElementById('rc-mode');
+  mode.value = 'specific';
+  mode.dispatchEvent(new page.window.Event('change', { bubbles: true }));
   page.document.getElementById('rc-emoji').value = emoji;
   page.document.getElementById('rc-label').value = label;
 }
@@ -90,7 +93,7 @@ test('registers once, suppresses duplicate submit, and renders reacted/pending w
   page.document.getElementById('rc-submit').click();
   assert.equal(page.requests.filter(req => req.url === '/api/reaction-checks' && req.method === 'POST').length, 1);
   const post = page.requests.find(req => req.url === '/api/reaction-checks' && req.method === 'POST');
-  assert.deepEqual(post.body, { message_url: 'https://discord.com/channels/1/2/3', emoji: '✅', label: unsafeLabel });
+  assert.deepEqual(post.body, { message_url: 'https://discord.com/channels/1/2/3', mode: 'specific', emoji: '✅', label: unsafeLabel });
 
   finishPost(response(report(10, {
     check: { label: unsafeLabel },
@@ -108,6 +111,101 @@ test('registers once, suppresses duplicate submit, and renders reacted/pending w
   assert.match(page.document.getElementById('rc-pending-heading').textContent, /押していない人 1人/);
   assert.match(page.document.getElementById('rc-counts').textContent, /対象 2人/);
   assert.match(page.document.getElementById('rc-detail-feedback').textContent, /一部のメンバー/);
+  await close(page);
+});
+
+test('any-emoji mode submits without emoji, hides emoji controls, and is labeled in list and detail', async () => {
+  const anyCheck = { id: 30, guild_id: '1', channel_id: '2', message_id: '5', mode: 'any', label: 'Any reaction', emoji: null, synced_at: null };
+  const anyReport = report(10, { check: { ...anyCheck }, reacted: [], pending: [], member_snapshot_at: null, synced_at: null });
+  const page = await createPage(req => {
+    if (req.url === '/api/reaction-checks' && req.method === 'GET') return response([anyCheck]);
+    if (req.url === '/api/reaction-checks' && req.method === 'POST') return response(anyReport);
+    if (req.url === '/api/reaction-checks/30' && req.method === 'GET') return response(anyReport);
+    return defaultData(req.url);
+  });
+  const mode = page.document.getElementById('rc-mode');
+  const emojiGroup = page.document.getElementById('rc-emoji-group');
+  const emoji = page.document.getElementById('rc-emoji');
+  assert.equal(mode.value, 'any');
+  assert.equal(emojiGroup.hidden, true);
+  assert.equal(emoji.disabled, true);
+
+  fillForm(page, { label: 'Any reaction' });
+  mode.value = 'any';
+  mode.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  emoji.value = '';
+  page.document.getElementById('rc-submit').click();
+  await waitFor(() => page.requests.some(req => req.url === '/api/reaction-checks' && req.method === 'POST'), 'any-mode POST missing');
+  const post = page.requests.find(req => req.url === '/api/reaction-checks' && req.method === 'POST');
+  assert.deepEqual(post.body, { message_url: 'https://discord.com/channels/1/2/3', mode: 'any', label: 'Any reaction' });
+  assert.equal(Object.hasOwn(post.body, 'emoji'), false);
+  await waitFor(() => page.document.getElementById('rc-detail-title').textContent === 'Any reaction', 'any-mode report did not render');
+  await waitFor(() => !page.document.getElementById('rc-fields').disabled, 'any-mode registration did not finish');
+  assert.match(page.document.getElementById('rc-list').textContent, /どの絵文字でもOK/);
+  page.document.querySelector('#rc-list button').click();
+  await waitFor(() => page.document.getElementById('rc-detail-title').textContent === 'Any reaction', 'any-mode detail did not load');
+  assert.match(page.document.getElementById('rc-sync-status').textContent, /どの絵文字でもOK/);
+  await close(page);
+});
+
+test('specific mode reveals and requires emoji while preserving it when toggling modes', async () => {
+  const page = await createPage(req => {
+    if (req.url === '/api/reaction-checks' && req.method === 'POST') return response(report(10));
+    return defaultData(req.url);
+  });
+  const mode = page.document.getElementById('rc-mode');
+  const emoji = page.document.getElementById('rc-emoji');
+  const group = page.document.getElementById('rc-emoji-group');
+  assert.equal(mode.value, 'any');
+  assert.equal(group.hidden, true);
+  assert.equal(emoji.disabled, true);
+  assert.equal(emoji.required, false);
+
+  mode.value = 'specific';
+  mode.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.equal(group.hidden, false);
+  assert.equal(emoji.disabled, false);
+  assert.equal(emoji.required, true);
+  assert.equal(emoji.value, '✅');
+  emoji.value = '👀';
+  mode.value = 'any';
+  mode.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.equal(group.hidden, true);
+  assert.equal(emoji.disabled, true);
+  assert.equal(emoji.value, '👀');
+  mode.value = 'specific';
+  mode.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.equal(emoji.value, '👀');
+
+  fillForm(page, { emoji: '' });
+  page.document.getElementById('rc-submit').click();
+  const feedback = page.document.getElementById('rc-feedback');
+  await waitFor(() => feedback.classList.contains('error') && !feedback.hidden, 'empty specific emoji error missing');
+  assert.match(feedback.textContent, /集計する絵文字を入力してください/);
+  assert.equal(page.requests.some(req => req.url === '/api/reaction-checks' && req.method === 'POST'), false);
+
+  emoji.value = '👀';
+  page.document.getElementById('rc-submit').click();
+  await waitFor(() => page.requests.some(req => req.url === '/api/reaction-checks' && req.method === 'POST'), 'specific-mode POST missing');
+  assert.deepEqual(page.requests.find(req => req.url === '/api/reaction-checks' && req.method === 'POST').body,
+    { message_url: 'https://discord.com/channels/1/2/3', mode: 'specific', emoji: '👀', label: 'Read this' });
+  await waitFor(() => !page.document.getElementById('rc-fields').disabled, 'specific registration did not finish');
+  await close(page);
+});
+
+test('checks without a mode field render as legacy specific-emoji checks', async () => {
+  const { mode: _ignored, ...legacyCheck } = checks[0];
+  const legacyReport = report(10, { check: legacyCheck });
+  delete legacyReport.check.mode;
+  const page = await createPage(req => {
+    if (req.url === '/api/reaction-checks' && req.method === 'GET') return response([legacyCheck]);
+    if (req.url === '/api/reaction-checks/10' && req.method === 'GET') return response(legacyReport);
+    return defaultData(req.url);
+  });
+  assert.match(page.document.getElementById('rc-list').textContent, /指定した絵文字: ✅/);
+  page.document.querySelector('#rc-list button').click();
+  await waitFor(() => page.document.getElementById('rc-detail-title').textContent === 'Read chapter', 'legacy detail did not load');
+  assert.match(page.document.getElementById('rc-sync-status').textContent, /指定した絵文字: ✅/);
   await close(page);
 });
 

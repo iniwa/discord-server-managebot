@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Discord Server Manager</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=reaction-checks-1" />
+  <link rel="stylesheet" href="style.css?v=reaction-checks-2" />
 </head>
 <body>
   <header>
@@ -35,16 +35,17 @@
     <div class="role-workspace">
       <form class="card role-composer" id="rc-form" novalidate>
         <h3>集計するメッセージを登録</h3>
-        <p class="role-help">Discordに「読んだら ✅ を押してください」などの案内を投稿し、そのメッセージのリンクをコピーしてください。</p>
+        <p class="role-help">Discordに「読んだら何かリアクションを付けてください」などの案内を投稿し、そのメッセージのリンクをコピーしてください。</p>
         <fieldset id="rc-fields">
           <div class="form-group"><label for="rc-label">管理用の名前</label><input id="rc-label" maxlength="100" placeholder="例: Read-meの確認" /></div>
           <div class="form-group"><label for="rc-url">メッセージリンク <span class="required">必須</span></label><input id="rc-url" type="url" placeholder="https://discord.com/channels/…/…/…" required /><small>メッセージの右クリックメニューから「メッセージリンクをコピー」で取得できます。</small></div>
-          <div class="form-group"><label for="rc-emoji">集計する絵文字 <span class="required">必須</span></label><input id="rc-emoji" value="✅" maxlength="100" list="rc-emojis" required /><datalist id="rc-emojis"><option value="✅"></option><option value="👍"></option><option value="👀"></option></datalist><small>絵文字を1つ入力します。サーバー絵文字は候補から選べます。</small></div>
+          <div class="form-group"><label for="rc-mode">集計するリアクション</label><select id="rc-mode"><option value="any">どの絵文字でもOK</option><option value="specific">指定した絵文字のみ</option></select><small>どの絵文字でもOKの場合、1つでもリアクションがあれば反応済みになります。</small></div>
+          <div class="form-group" id="rc-emoji-group" hidden><label for="rc-emoji">集計する絵文字 <span class="required">必須</span></label><input id="rc-emoji" value="✅" maxlength="100" list="rc-emojis" required /><datalist id="rc-emojis"><option value="✅"></option><option value="👍"></option><option value="👀"></option></datalist><small>絵文字を1つ入力します。サーバー絵文字は候補から選べます。</small></div>
           <button class="btn btn-primary" id="rc-submit" type="submit">登録して集計する</button>
         </fieldset>
         <div id="rc-feedback" class="role-feedback" role="status" aria-live="polite" hidden></div>
       </form>
-      <div class="card"><h3>集計のルール</h3><p class="role-help">現在サーバーに参加している人を対象に、押した人・押していない人を表示します。Botは除外し、リアクションを外すと未反応に戻ります。</p><p class="role-help">日時はBotがリアクション追加を受信した時刻です。登録前やBot停止中のリアクションは、日時不明でも押した人に含めます。日時は別途保存します。</p><p class="role-help">登録時にBotが対象の絵文字を付けます。ロールの付与やDM送信はありません。</p></div>
+      <div class="card"><h3>集計のルール</h3><p class="role-help">現在サーバーに参加している人を対象に、押した人・押していない人を表示します。Botは除外します。「どの絵文字でもOK」では、複数付けても1人として数え、すべて外すと未反応に戻ります。</p><p class="role-help">日時はBotがリアクション追加を受信した時刻です。登録前やBot停止中のリアクションは、日時不明でも押した人に含めます。日時は別途保存します。</p><p class="role-help">「指定した絵文字のみ」では登録時にBotがその絵文字を付けます。「どの絵文字でもOK」ではBotから絵文字を追加しません。ロールの付与やDM送信はありません。</p></div>
     </div>
     <div class="card"><div class="card-header"><h2>登録済みの既読確認</h2><button type="button" class="btn btn-ghost btn-sm" id="rc-reload">一覧を更新</button></div><div id="rc-list" class="role-list" aria-live="polite"></div></div>
     <div class="card" id="rc-detail" hidden>
@@ -256,6 +257,6 @@
   </script>
   <script src="app.js?v=multi-role-buttons-3"></script>
   <script src="button-roles.js?v=multi-role-buttons-3"></script>
-  <script src="reaction-checks.js?v=reaction-checks-1"></script>
+  <script src="reaction-checks.js?v=reaction-checks-2"></script>
 </body>
 </html>

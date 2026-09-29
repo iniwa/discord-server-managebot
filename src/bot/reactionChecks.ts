@@ -1,12 +1,12 @@
 import { Client, Routes } from 'discord.js';
 import { getClient } from './index';
-import { checkEventCursor, emojiKey, listReactionChecks, recordCheckEvent, saveCheckSnapshot, ReactionCheck, CheckMember } from '../db/queries/reactionChecks';
+import { anyCheckEventCursor, recordAnyCheckEvent, saveAnyCheckSnapshot, checkEventCursor, emojiKey, listReactionChecks, recordCheckEvent, saveCheckSnapshot, ReactionCheck, CheckMember } from '../db/queries/reactionChecks';
 import { listReactionRoles } from '../db/queries/reactionRoles';
 import { listStatusRoles } from '../db/queries/statusRoles';
 
-export function conflictsWithRole(check: Pick<ReactionCheck, 'guild_id' | 'channel_id' | 'message_id' | 'emoji'>): boolean {
+export function conflictsWithRole(check: Pick<ReactionCheck, 'guild_id' | 'channel_id' | 'message_id' | 'emoji'> & { mode?: 'any' | 'specific' }): boolean {
   return [...listReactionRoles(check.guild_id), ...listStatusRoles(check.guild_id)].some(role =>
-    role.channel_id === check.channel_id && role.message_id === check.message_id && emojiKey(role.emoji) === emojiKey(check.emoji));
+    role.channel_id === check.channel_id && role.message_id === check.message_id && (check.mode === 'any' || emojiKey(role.emoji) === emojiKey(check.emoji)));
 }
 export function reactionCheckError(error: unknown): string {
   const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'number' ? error.code : undefined;
@@ -27,11 +27,11 @@ export function syncReactionCheck(check: ReactionCheck, client = getClient()): P
 }
 async function sync(check: ReactionCheck, client: Client): Promise<void> {
   if (conflictsWithRole(check)) throw new Error('Conflicting role configuration');
-  const cursor = checkEventCursor(check.id);
+  const cursor = check.mode === 'any' ? anyCheckEventCursor(check.id) : checkEventCursor(check.id);
   const guild = await client.guilds.fetch(check.guild_id);
   const channel = await guild.channels.fetch(check.channel_id);
   if (!channel?.isTextBased() || !('messages' in channel)) throw new Error('Unavailable channel');
-  await channel.messages.fetch(check.message_id);
+  const message = await channel.messages.fetch({ message: check.message_id, force: true });
   const members: CheckMember[] = [];
   let after: string | undefined;
   for (;;) {
@@ -42,26 +42,37 @@ async function sync(check: ReactionCheck, client: Client): Promise<void> {
     if (!next || next === after) throw new Error('Member pagination stalled');
     after = next;
   }
-  const users: [Set<string>, Set<string>] = [new Set(), new Set()];
   const custom = /^<a?:([^:>]+):(\d+)>$/.exec(check.emoji);
-  const routeEmoji = custom ? `${custom[1]}:${custom[2]}` : check.emoji;
-  for (const type of [0, 1]) {
-    after = undefined;
-    for (;;) {
-      const query = new URLSearchParams({ limit: '100', type: String(type) });
-      if (after) query.set('after', after);
-      const page = await client.rest.get(Routes.channelMessageReaction(check.channel_id, check.message_id, encodeURIComponent(routeEmoji)), { query }) as { id: string; bot?: boolean }[];
-      for (const user of page) if (!user.bot) users[type].add(user.id);
-      if (page.length < 100) break;
-      const next = page[page.length - 1]?.id;
-      if (!next || next === after) throw new Error('Reaction pagination stalled');
-      after = next;
+  const emojis = check.mode === 'any'
+    ? [...message.reactions.cache.values()].map(reaction => ({
+      key: reaction.emoji.id ?? emojiKey(reaction.emoji.name ?? ''),
+      route: reaction.emoji.id ? `${reaction.emoji.name ?? '_'}:${reaction.emoji.id}` : reaction.emoji.name ?? '',
+    }))
+    : [{ key: check.emoji_key, route: custom ? `${custom[1]}:${custom[2]}` : check.emoji }];
+  const allUsers = new Map<string, [Set<string>, Set<string>]>();
+  for (const emoji of emojis) {
+    const users: [Set<string>, Set<string>] = [new Set(), new Set()];
+    allUsers.set(emoji.key, users);
+    for (const type of [0, 1]) {
+      after = undefined;
+      for (;;) {
+        const query = new URLSearchParams({ limit: '100', type: String(type) });
+        if (after) query.set('after', after);
+        const page = await client.rest.get(Routes.channelMessageReaction(check.channel_id, check.message_id, encodeURIComponent(emoji.route)), { query }) as { id: string; bot?: boolean }[];
+        for (const user of page) if (!user.bot) users[type].add(user.id);
+        if (page.length < 100) break;
+        const next = page[page.length - 1]?.id;
+        if (!next || next === after) throw new Error('Reaction pagination stalled');
+        after = next;
+      }
     }
   }
-  saveCheckSnapshot(check.id, members, users, cursor);
+  if (check.mode === 'any') saveAnyCheckSnapshot(check.id, members, allUsers, cursor);
+  else saveCheckSnapshot(check.id, members, allUsers.get(check.emoji_key)!, cursor);
 }
 
 export async function installCheckReaction(check: ReactionCheck): Promise<string | null> {
+  if (check.mode === 'any') return null;
   try {
     const guild = await getClient().guilds.fetch(check.guild_id);
     const channel = await guild.channels.fetch(check.channel_id);
@@ -83,8 +94,15 @@ export function registerReactionChecks(client: Client): void {
     if (!data.guild_id || data.guild_id !== process.env.DISCORD_GUILD_ID) return;
     try {
       const checks = listReactionChecks(data.guild_id).filter(check => check.channel_id === data.channel_id && check.message_id === data.message_id &&
-        (packet.t === 'MESSAGE_REACTION_REMOVE_ALL' || check.emoji_key === (data.emoji?.id ?? emojiKey(data.emoji?.name ?? ''))));
+        (check.mode === 'any' || packet.t === 'MESSAGE_REACTION_REMOVE_ALL' || check.emoji_key === (data.emoji?.id ?? emojiKey(data.emoji?.name ?? ''))));
       for (const check of checks) {
+        if (check.mode === 'any') {
+          const key = data.emoji?.id ?? emojiKey(data.emoji?.name ?? '');
+          if (packet.t === 'MESSAGE_REACTION_REMOVE_ALL') recordAnyCheckEvent(check.id, null, null, null, 'clear');
+          else if (packet.t === 'MESSAGE_REACTION_REMOVE_EMOJI') recordAnyCheckEvent(check.id, null, key, null, 'clear_emoji');
+          else if (data.user_id) recordAnyCheckEvent(check.id, data.user_id, key, data.type ?? (data.burst ? 1 : 0), packet.t === 'MESSAGE_REACTION_ADD' ? 'add' : 'remove');
+          continue;
+        }
         if (packet.t === 'MESSAGE_REACTION_REMOVE_ALL' || packet.t === 'MESSAGE_REACTION_REMOVE_EMOJI') recordCheckEvent(check.id, null, null, 'clear');
         else if (data.user_id) recordCheckEvent(check.id, data.user_id, data.type ?? (data.burst ? 1 : 0), packet.t === 'MESSAGE_REACTION_ADD' ? 'add' : 'remove');
       }

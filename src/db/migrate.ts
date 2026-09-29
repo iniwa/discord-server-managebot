@@ -24,6 +24,16 @@ export function runMigrations(db: Database.Database): void {
       user_id TEXT, reaction_type INTEGER, action TEXT NOT NULL, observed_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS reaction_check_events_check ON reaction_check_events(check_id, id);
+    CREATE TABLE IF NOT EXISTS reaction_check_any_state (
+      check_id INTEGER NOT NULL REFERENCES reaction_checks(id), user_id TEXT NOT NULL,
+      emoji_key TEXT NOT NULL, reaction_type INTEGER NOT NULL, active INTEGER NOT NULL, reacted_at TEXT,
+      PRIMARY KEY(check_id,user_id,emoji_key,reaction_type)
+    );
+    CREATE TABLE IF NOT EXISTS reaction_check_any_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, check_id INTEGER NOT NULL REFERENCES reaction_checks(id),
+      user_id TEXT, emoji_key TEXT, reaction_type INTEGER, action TEXT NOT NULL, observed_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS reaction_check_any_events_check ON reaction_check_any_events(check_id,id);
     CREATE TABLE IF NOT EXISTS role_snapshots (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
       guild_id  TEXT NOT NULL,
@@ -110,6 +120,11 @@ export function runMigrations(db: Database.Database): void {
       UNIQUE(message_id, emoji)
     );
   `);
+
+  const checkColumns = db.pragma('table_info(reaction_checks)') as { name: string }[];
+  if (!checkColumns.some(column => column.name === 'mode')) {
+    db.exec("ALTER TABLE reaction_checks ADD COLUMN mode TEXT NOT NULL DEFAULT 'specific' CHECK(mode IN ('specific','any'))");
+  }
 
   // 旧バージョンとのスキーマ互換性のため保持する。DM送信には使用しない。
   db.transaction(() => {

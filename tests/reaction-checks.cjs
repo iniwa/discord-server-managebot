@@ -12,14 +12,14 @@ const bot = require('../dist/bot');
 const base = { guild_id: '100', channel_id: '200', message_id: '300', emoji: '✅', label: 'Read check' };
 function create(message = String(Math.floor(Math.random() * 1e12))) { const id = q.createReactionCheck({ ...base, message_id: message }); return q.getReactionCheck(id, '100'); }
 function member(id, isBot = false) { return { id, user: { username: `user${id}`, bot: isBot }, displayName: `Member ${id}` }; }
-function fake({ members = [member('1'), member('2'), member('3', true)], reactionPages, failReact = false, onPage } = {}) {
+function fake({ members = [member('1'), member('2'), member('3', true)], reactionPages, failReact = false, onPage, emojis = [] } = {}) {
   const calls = [];
-  const guild = { channels: { fetch: async () => ({ isTextBased: () => true, messages: { fetch: async () => ({ react: async () => { if (failReact) throw { code: 50013 }; } }) } }) },
+  const guild = { channels: { fetch: async () => ({ isTextBased: () => true, messages: { fetch: async options => { calls.push({ fetch: options }); return { reactions: { cache: new Collection(emojis.map(name => [name, { emoji: { id: null, name } }])) }, react: async () => { calls.push({ react: true }); if (failReact) throw { code: 50013 }; } }; } } }) },
     members: { list: async () => new Collection(members.map(m => [m.id, m])) } };
   return { calls, guilds: { fetch: async id => { assert.equal(id, '100'); return guild; } }, rest: { get: async (route, { query }) => {
     calls.push({ route, type: query.get('type'), limit: query.get('limit'), after: query.get('after') });
-    if (onPage) await onPage(query);
-    return reactionPages ? reactionPages(query) : query.get('type') === '0' ? [{ id: '1' }] : [];
+    if (onPage) await onPage(query, route);
+    return reactionPages ? reactionPages(query, route) : query.get('type') === '0' ? [{ id: '1' }] : [];
   } } };
 }
 test('sync counts present humans, initial time unknown, fetches both types and paginates', async () => {
@@ -31,9 +31,10 @@ test('sync counts present humans, initial time unknown, fetches both types and p
   assert.deepEqual(report.reacted.map(u => u.user_id), ['1', '2']);
   assert.equal(report.reacted[0].reacted_at, null);
   assert.equal(report.pending.length, 0);
-  assert.equal(client.calls.length, 3);
-  assert.equal(client.calls[1].after, '100');
-  assert.ok(client.calls.every(c => c.limit === '100'));
+  const restCalls = client.calls.filter(c => c.route);
+  assert.equal(restCalls.length, 3);
+  assert.equal(restCalls[1].after, '100');
+  assert.ok(restCalls.every(c => c.limit === '100'));
   assert.ok(report.synced_at);
 });
 test('normal/burst independent removals, remove-readd gets new observed timestamp; history retained', async () => {
@@ -105,6 +106,20 @@ test('HTTP registration/report/sync: URL scope, duplicate conflict, installation
     assert.equal((await fetch(`${url}/${foreign}`)).status, 404);
     require('../dist/db/queries/reactionRoles').createReactionRole({ ...base, message_id: '901', role_id: 'role', message_content: null });
     assert.equal((await request('', { ...input, message_url: 'https://discord.com/channels/100/200/901' })).status, 409);
+    assert.equal((await request('', { ...input, mode: 'any', emoji: undefined, message_url: 'https://discord.com/channels/100/200/901' })).status, 409);
+    const anyClient = fake({ emojis: ['👍'], failReact: true });
+    bot.getClient = () => anyClient;
+    const anyInput = { message_url: 'https://discord.com/channels/100/200/909', mode: 'any' };
+    const anyCreated = await request('', anyInput);
+    assert.equal(anyCreated.status, 201);
+    const anyReport = await anyCreated.json();
+    assert.equal(anyReport.check.mode, 'any');
+    assert.equal(anyReport.check.emoji, '');
+    assert.equal(anyReport.warning, null);
+    assert.equal(anyClient.calls.some(c => c.react), false);
+    assert.equal((await request('', anyInput)).status, 409);
+    assert.equal((await request('', { ...anyInput, mode: 'invalid' })).status, 400);
+    bot.getClient = () => fake({ failReact: true });
     const optional = await request('', { ...input, label: '', message_url: 'https://discord.com/channels/100/200/902' });
     assert.equal(optional.status, 201);
     assert.equal((await optional.json()).check.label, '既読確認');
@@ -133,4 +148,73 @@ test('known check bypasses legacy role toggling and reaction removal', async () 
   let handler;
   require('../dist/bot/events/messageReactionAdd').registerMessageReactionAdd({ on: (_, callback) => { handler = callback; } });
   await handler({ partial: false, emoji: { name: '✅' }, message: { id: check.message_id, channelId: '200', components: [], guild: { id: '100', members: { fetch: () => { throw Error('must not fetch member or toggle role'); } } } } }, { id: '1', bot: false, partial: false });
+});
+
+function createAny(message) { return q.getReactionCheck(q.createReactionCheck({ ...base, message_id: message, mode: 'any', emoji: '' }), '100'); }
+test('any mode unions multiple emojis/burst, clears only one emoji, last removal becomes pending', async () => {
+  const check = createAny('810');
+  const client = fake({ emojis: ['✅', '👍'], reactionPages: (query, route) => {
+    if (route.includes(encodeURIComponent('👍'))) return [{ id: '2' }];
+    return query.get('type') === '0' ? [{ id: '1' }] : [];
+  } });
+  await service.syncReactionCheck(check, client);
+  assert.equal(client.calls[0].fetch.force, true);
+  assert.deepEqual(q.reactionCheckReport(check).reacted.map(u => u.user_id), ['1', '2']);
+  assert.equal(q.reactionCheckReport(check).reacted[0].reacted_at, null);
+  q.recordAnyCheckEvent(check.id, '1', '👍', 0, 'add', '2026-01-01T00:00:00Z');
+  q.recordAnyCheckEvent(check.id, null, '✅', null, 'clear_emoji');
+  assert.equal(q.reactionCheckReport(check).reacted.length, 2);
+  q.recordAnyCheckEvent(check.id, '1', '👍', 0, 'remove');
+  assert.deepEqual(q.reactionCheckReport(check).pending.map(u => u.user_id), ['1']);
+  q.recordAnyCheckEvent(check.id, '2', '👍', 0, 'remove');
+  assert.equal(q.reactionCheckReport(check).reacted.length, 1, 'burst still exists');
+  q.recordAnyCheckEvent(check.id, null, null, null, 'clear');
+  assert.equal(q.reactionCheckReport(check).pending.length, 2);
+  q.recordAnyCheckEvent(check.id, '1', '👍', 0, 'add', '2026-02-01T00:00:00Z');
+  assert.equal(q.reactionCheckReport(check).reacted[0].reacted_at, '2026-02-01T00:00:00Z');
+  assert.equal(getDb().prepare('SELECT COUNT(*) AS n FROM reaction_check_any_events WHERE check_id=?').get(check.id).n, 6);
+  bot.getClient = () => { throw Error('any must never try installing a reaction'); };
+  assert.equal(await service.installCheckReaction(check), null);
+});
+test('any sync replays new emoji events absent from message snapshot and retains timestamps', async () => {
+  const check = createAny('811');
+  let once = false;
+  const client = fake({ emojis: ['✅'], onPage: () => {
+    if (once) return; once = true;
+    q.recordAnyCheckEvent(check.id, '1', '✅', 0, 'add', '2026-03-01T00:00:00Z');
+    q.recordAnyCheckEvent(check.id, '2', '🔥', 1, 'add', '2026-03-02T00:00:00Z');
+  } });
+  await service.syncReactionCheck(check, client);
+  const report = q.reactionCheckReport(check);
+  assert.equal(report.reacted[0].reacted_at, '2026-03-01T00:00:00Z');
+  assert.equal(report.reacted[1].reacted_at, '2026-03-02T00:00:00Z');
+  const before = q.reactionCheckReport(q.getReactionCheck(check.id, '100'));
+  await assert.rejects(service.syncReactionCheck(check, fake({ emojis: ['✅', '🔥'], reactionPages: (_, route) => {
+    if (route.includes(encodeURIComponent('🔥'))) throw Error('fake'); return [];
+  } })));
+  assert.deepEqual(q.reactionCheckReport(q.getReactionCheck(check.id, '100')), before);
+});
+test('any raw emoji clear is scoped; remove-all clears every emoji', async () => {
+  const check = createAny('812');
+  q.saveAnyCheckSnapshot(check.id, [{ user_id: '1', username: 'u', display_name: 'u' }], new Map(), 0);
+  const client = new EventEmitter(); service.registerReactionChecks(client);
+  const data = { guild_id: '100', channel_id: '200', message_id: '812', user_id: '1' };
+  for (const name of ['✅', '👍']) client.emit('raw', { t: 'MESSAGE_REACTION_ADD', d: { ...data, emoji: { id: null, name } } });
+  client.emit('raw', { t: 'MESSAGE_REACTION_REMOVE_EMOJI', d: { ...data, emoji: { id: null, name: '✅' } } });
+  assert.equal(q.reactionCheckReport(check).reacted.length, 1);
+  client.emit('raw', { t: 'MESSAGE_REACTION_REMOVE_ALL', d: data });
+  assert.equal(q.reactionCheckReport(check).pending.length, 1);
+});
+test('mode migration preserves original specific config, reaction state and history', () => {
+  const Database = require('better-sqlite3'); const { runMigrations } = require('../dist/db/migrate');
+  const db = new Database(':memory:');
+  try {
+    runMigrations(db); db.exec('ALTER TABLE reaction_checks DROP COLUMN mode');
+    db.prepare('INSERT INTO reaction_checks(guild_id,channel_id,message_id,emoji,emoji_key,label) VALUES (?,?,?,?,?,?)').run('100','200','300','✅','✅','Legacy');
+    db.exec("INSERT INTO reaction_check_state VALUES (1,'1',0,1,'old'); INSERT INTO reaction_check_events(check_id,user_id,reaction_type,action,observed_at) VALUES (1,'1',0,'add','old')");
+    runMigrations(db); runMigrations(db);
+    assert.equal(db.prepare('SELECT mode FROM reaction_checks').get().mode, 'specific');
+    assert.equal(db.prepare('SELECT reacted_at FROM reaction_check_state').get().reacted_at, 'old');
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM reaction_check_events').get().n, 1);
+  } finally { db.close(); }
 });

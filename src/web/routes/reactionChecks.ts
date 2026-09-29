@@ -18,13 +18,13 @@ function validEmoji(value: unknown): value is string {
 
 router.get('/', (_req, res) => res.json(listReactionChecks(guildId()).map(publicReactionCheck)));
 router.post('/', async (req, res) => {
-  const { message_url, emoji, label } = req.body ?? {};
+  const { message_url, emoji, label, mode = 'specific' } = req.body ?? {};
   const match = typeof message_url === 'string' ? /^https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)\/?(?:\?[^#]*)?$/.exec(message_url.trim()) : null;
-  if (!match || match[1] !== guildId() || !validEmoji(emoji) || (label !== undefined && (typeof label !== 'string' || label.length > 100))) {
+  if (!match || match[1] !== guildId() || !['specific', 'any'].includes(mode) || (mode === 'specific' && !validEmoji(emoji)) || (label !== undefined && (typeof label !== 'string' || label.length > 100))) {
     return res.status(400).json({ error: 'このサーバーのメッセージURL、絵文字、100文字以内の管理名を入力してください。' });
   }
-  const data = { guild_id: match[1], channel_id: match[2], message_id: match[3], emoji: emoji.trim(), label: label?.trim() || '既読確認' };
-  if (conflictsWithRole(data)) return res.status(409).json({ error: '同じメッセージと絵文字はロール設定で使用されています。別の絵文字を選択してください。' });
+  const data = { guild_id: match[1], channel_id: match[2], message_id: match[3], emoji: mode === 'any' ? '' : emoji.trim(), label: label?.trim() || '既読確認', mode: mode as 'any' | 'specific' };
+  if (conflictsWithRole(data)) return res.status(409).json({ error: mode === 'any' ? 'このメッセージはロール設定で使用されています。別のメッセージを選択してください。' : '同じメッセージと絵文字はロール設定で使用されています。別の絵文字を選択してください。' });
   let id: number;
   try { id = createReactionCheck(data); } catch { return res.status(409).json({ error: '同じメッセージと絵文字の確認設定が既に存在するか、設定を保存できませんでした。' }); }
   try {

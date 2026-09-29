@@ -19,6 +19,13 @@
     target.textContent = text;
   }
   function date(value) { return value ? formatDate(value) + '（日本時間）' : '未同期'; }
+  function modeLabel(check) { return check.mode === 'any' ? 'どの絵文字でもOK' : `指定した絵文字: ${check.emoji}`; }
+  function updateMode() {
+    const specific = el('mode').value === 'specific';
+    el('emoji-group').hidden = !specific;
+    el('emoji').disabled = !specific;
+    el('emoji').required = specific;
+  }
   function messageUrl(check) {
     return `https://discord.com/channels/${encodeURIComponent(check.guild_id)}/${encodeURIComponent(check.channel_id)}/${encodeURIComponent(check.message_id)}`;
   }
@@ -31,7 +38,7 @@
       if (!checks.length) target.append(node('p', 'まだ登録されていません。上のフォームからメッセージを登録してください。', 'role-help'));
       checks.forEach(check => {
         const card = node('article', undefined, 'role-config');
-        card.append(node('h3', check.label || '既読確認'), node('p', `絵文字: ${check.emoji} · 最終同期: ${date(check.synced_at)}`));
+        card.append(node('h3', check.label || '既読確認'), node('p', `${modeLabel(check)} · 最終同期: ${date(check.synced_at)}`));
         const button = node('button', '集計を見る', 'btn btn-primary btn-sm');
         button.type = 'button';
         button.addEventListener('click', () => loadDetail(check.id));
@@ -90,7 +97,7 @@
     el('sync').disabled = syncing;
     el('detail-title').textContent = value.check.label || '既読確認';
     el('message-link').href = messageUrl(value.check);
-    el('sync-status').textContent = `リアクション最終同期: ${date(value.synced_at)} / 参加者の確認時点: ${date(value.member_snapshot_at)}。再同期で現在の状態を取得します。記録日時はBotが追加を受信した時刻です。`;
+    el('sync-status').textContent = `${modeLabel(value.check)} / リアクション最終同期: ${date(value.synced_at)} / 参加者の確認時点: ${date(value.member_snapshot_at)}。再同期で現在の状態を取得します。記録日時はBotが追加を受信した時刻です。`;
     const counts = el('counts');
     counts.replaceChildren(node('span', `押した人 ${value.reacted.length}人`, 'badge'), node('span', `押していない人 ${value.pending.length}人`, 'badge'), node('span', `対象 ${value.reacted.length + value.pending.length}人`, 'badge'));
     counts.hidden = !value.member_snapshot_at;
@@ -135,17 +142,18 @@
     event.preventDefault();
     if (submitting || syncing) return;
     const message_url = el('url').value.trim();
+    const mode = el('mode').value;
     const emoji = el('emoji').value.trim();
     const label = el('label').value.trim();
     if (!/^https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/channels\/\d+\/\d+\/\d+\/?(?:\?[^#]*)?$/.test(message_url)) {
       feedback('feedback', 'Discordのメッセージリンクを入力してください。', true); el('url').focus(); return;
     }
-    if (!emoji) { feedback('feedback', '集計する絵文字を入力してください。', true); el('emoji').focus(); return; }
+    if (mode === 'specific' && !emoji) { feedback('feedback', '集計する絵文字を入力してください。', true); el('emoji').focus(); return; }
     submitting = true;
     el('fields').disabled = true;
     feedback('feedback', '登録してリアクションを集計しています…');
     try {
-      const value = await api('/api/reaction-checks', 'POST', { message_url, emoji, label });
+      const value = await api('/api/reaction-checks', 'POST', { message_url, mode, ...(mode === 'specific' ? { emoji } : {}), label });
       ++detailRequest;
       renderReport(value);
       feedback('feedback', value.warning ? '登録しました。集計結果の注意事項をご確認ください。' : '登録しました。下の集計結果から確認できます。');
@@ -160,6 +168,8 @@
     el('reload').addEventListener('click', loadList);
     el('sync').addEventListener('click', sync);
     el('search').addEventListener('input', renderMembers);
+    el('mode').addEventListener('change', updateMode);
+    updateMode();
     loadList();
     api('/api/discord/emojis').then(emojis => {
       emojis.forEach(emoji => {

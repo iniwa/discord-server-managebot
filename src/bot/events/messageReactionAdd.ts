@@ -25,7 +25,7 @@ export function registerMessageReactionAdd(client: Client): void {
         if (!guild) return;
         // Read-confirmation reactions are retained; never toggle roles or remove them.
         if (listReactionChecks(guild.id).some(check => check.channel_id === reaction.message.channelId
-          && check.message_id === reaction.message.id && check.emoji_key === emojiKey(emoji))) return;
+          && check.message_id === reaction.message.id && (check.mode === 'any' || check.emoji_key === emojiKey(emoji)))) return;
         const member = await guild.members.fetch(user.id);
 
         // ── ステータスロール ───────────────────────────────────────────

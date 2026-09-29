@@ -16,12 +16,15 @@ router.get('/', (_req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { channel_id, message_id, emoji, role_id, label } = req.body;
+  const { channel_id, message_id, emoji, role_id, label, dm_on_add } = req.body;
+  if (dm_on_add !== undefined && dm_on_add !== 0 && dm_on_add !== 1) {
+    return res.status(400).json({ error: 'dm_on_add must be 0 or 1' });
+  }
   if (!channel_id || !message_id || !emoji || !role_id) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   try {
-    const id = createStatusRole({ guild_id: GUILD_ID, channel_id, message_id, emoji, role_id, label: label ?? null });
+    const id = createStatusRole({ guild_id: GUILD_ID, channel_id, message_id, emoji, role_id, label: label ?? null, dm_on_add: dm_on_add ?? 1 });
 
     // 設定後、BOTが対象メッセージにリアクションを付与する
     try {
@@ -44,8 +47,14 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const { channel_id, message_id, emoji, role_id, label } = req.body;
-  updateStatusRole(id, { channel_id, message_id, emoji, role_id, label });
+  const { channel_id, message_id, emoji, role_id, label, dm_on_add } = req.body;
+  if (dm_on_add !== undefined && dm_on_add !== 0 && dm_on_add !== 1) {
+    return res.status(400).json({ error: 'dm_on_add must be 0 or 1' });
+  }
+  updateStatusRole(id, {
+    channel_id, message_id, emoji, role_id, label,
+    ...(dm_on_add === undefined ? {} : { dm_on_add }),
+  });
   res.json({ ok: true });
 });
 

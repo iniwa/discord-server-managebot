@@ -88,4 +88,14 @@ export function runMigrations(db: Database.Database): void {
       UNIQUE(message_id, emoji)
     );
   `);
+
+  // 既存の設定・履歴を保持し、付与時のDMは従来どおり有効にする。
+  db.transaction(() => {
+    for (const table of ['reaction_roles', 'status_roles']) {
+      const columns = db.pragma(`table_info(${table})`) as { name: string }[];
+      if (!columns.some((column) => column.name === 'dm_on_add')) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN dm_on_add INTEGER NOT NULL DEFAULT 1 CHECK (dm_on_add IN (0, 1))`);
+      }
+    }
+  })();
 }

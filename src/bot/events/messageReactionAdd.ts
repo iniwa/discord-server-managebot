@@ -48,10 +48,12 @@ export function registerMessageReactionAdd(client: Client): void {
             }
             await member.roles.add(statusConfig.role_id);
             console.log(`[StatusRole] Added role ${roleName} to ${(user as User).username}`);
-            try {
-              await (user as User).send(`**${guild.name}** でステータスロール **${roleName}** が付与されました。通話から退出すると自動的に外れます。`);
-            } catch {
-              console.warn(`[StatusRole] Could not DM user ${user.id}`);
+            if (statusConfig.dm_on_add) {
+              try {
+                await (user as User).send(`**${guild.name}** でステータスロール **${roleName}** が付与されました。通話から退出すると自動的に外れます。`);
+              } catch {
+                console.warn(`[StatusRole] Could not DM user ${user.id}`);
+              }
             }
           }
           return;
@@ -96,10 +98,12 @@ export function registerMessageReactionAdd(client: Client): void {
             message_id: reaction.message.id,
             emoji,
           });
-          try {
-            await (user as User).send(`**${guild.name}** でロール **${roleName}** が付与されました。`);
-          } catch {
-            console.warn(`[ReactionRole] Could not DM user ${user.id}`);
+          if (config.dm_on_add) {
+            try {
+              await (user as User).send(`**${guild.name}** でロール **${roleName}** が付与されました。`);
+            } catch {
+              console.warn(`[ReactionRole] Could not DM user ${user.id}`);
+            }
           }
         }
       } catch (err) {

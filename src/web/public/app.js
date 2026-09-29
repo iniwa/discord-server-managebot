@@ -286,7 +286,7 @@ async function loadReactionRoles() {
   const el = document.getElementById('reaction-roles-list');
   if (!list.length) { el.innerHTML = emptyState('リアクションロールはまだ設定されていません'); return; }
   el.innerHTML = `<table>
-    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネル</th><th>メッセージID</th><th>ラベル</th><th></th></tr></thead>
+    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネル</th><th>メッセージID</th><th>ラベル</th><th>付与時のDM</th><th></th></tr></thead>
     <tbody>
     ${list.map(r => `
       <tr>
@@ -295,6 +295,7 @@ async function loadReactionRoles() {
         <td>${esc(channelName(r.channel_id))}</td>
         <td class="mono">${r.message_id}</td>
         <td>${esc(r.label || '—')}</td>
+        <td>${r.dm_on_add === 0 ? '送らない' : '送る'}</td>
         <td style="display:flex;gap:6px;">
           <button class="btn btn-ghost btn-sm" onclick="openEditRR(${JSON.stringify(r).replace(/"/g,'&quot;')})">編集</button>
           <button class="btn btn-danger btn-sm" onclick="deleteReactionRole(${r.id})">削除</button>
@@ -311,11 +312,12 @@ async function addReactionRole() {
   const emoji = getEmojiValue('rr');
   const role_id = document.getElementById('rr-role').value;
   const label = document.getElementById('rr-label').value.trim();
+  const dm_on_add = Number(document.getElementById('rr-dm-on-add').value);
   if (!channel_id || !message_id || !emoji || !role_id) {
     toast('必須項目を入力してください', 'error'); return;
   }
   try {
-    await api('/api/reaction-roles', 'POST', { channel_id, message_id, emoji, role_id, label: label || null });
+    await api('/api/reaction-roles', 'POST', { channel_id, message_id, emoji, role_id, label: label || null, dm_on_add });
     toast('追加しました', 'success');
     document.getElementById('rr-channel').selectedIndex = 0;
     document.getElementById('rr-message').value = '';
@@ -324,6 +326,7 @@ async function addReactionRole() {
     document.getElementById('rr-emoji-text').style.display = 'none';
     document.getElementById('rr-role').selectedIndex = 0;
     document.getElementById('rr-label').value = '';
+    document.getElementById('rr-dm-on-add').value = '1';
     await loadReactionRoles();
   } catch (e) {
     toast('追加失敗: ' + e, 'error');
@@ -349,6 +352,7 @@ function openEditRR(item) {
   setEmojiValue('modal-rr', item.emoji);
   document.getElementById('modal-rr-role').value = item.role_id;
   document.getElementById('modal-rr-label').value = item.label || '';
+  document.getElementById('modal-rr-dm-on-add').value = String(item.dm_on_add ?? 1);
 
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
@@ -435,10 +439,11 @@ async function saveEdit() {
       const emoji = getEmojiValue('modal-sr');
       const role_id = document.getElementById('modal-sr-role').value;
       const label = document.getElementById('modal-sr-label').value.trim();
+      const dm_on_add = Number(document.getElementById('modal-sr-dm-on-add').value);
       if (!channel_id || !message_id || !emoji || !role_id) {
         toast('必須項目を入力してください', 'error'); return;
       }
-      await api(`/api/status-roles/${editId}`, 'PUT', { channel_id, message_id, emoji, role_id, label: label || null });
+      await api(`/api/status-roles/${editId}`, 'PUT', { channel_id, message_id, emoji, role_id, label: label || null, dm_on_add });
       await loadStatusRoles();
     } else if (editMode === 'rr') {
       const channel_id = document.getElementById('modal-rr-channel').value;
@@ -446,10 +451,11 @@ async function saveEdit() {
       const emoji = getEmojiValue('modal-rr');
       const role_id = document.getElementById('modal-rr-role').value;
       const label = document.getElementById('modal-rr-label').value.trim();
+      const dm_on_add = Number(document.getElementById('modal-rr-dm-on-add').value);
       if (!channel_id || !message_id || !emoji || !role_id) {
         toast('必須項目を入力してください', 'error'); return;
       }
-      await api(`/api/reaction-roles/${editId}`, 'PUT', { channel_id, message_id, emoji, role_id, label: label || null });
+      await api(`/api/reaction-roles/${editId}`, 'PUT', { channel_id, message_id, emoji, role_id, label: label || null, dm_on_add });
       await loadReactionRoles();
     } else {
       const channel_id = document.getElementById('modal-vr-channel').value;
@@ -648,7 +654,7 @@ async function loadStatusRoles() {
   const el = document.getElementById('status-roles-list');
   if (!list.length) { el.innerHTML = emptyState('ステータスロールはまだ設定されていません'); return; }
   el.innerHTML = `<table>
-    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネル</th><th>メッセージID</th><th>ラベル</th><th></th></tr></thead>
+    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネル</th><th>メッセージID</th><th>ラベル</th><th>付与時のDM</th><th></th></tr></thead>
     <tbody>
     ${list.map(r => `
       <tr>
@@ -657,6 +663,7 @@ async function loadStatusRoles() {
         <td>${esc(channelName(r.channel_id))}</td>
         <td class="mono">${r.message_id}</td>
         <td>${esc(r.label || '—')}</td>
+        <td>${r.dm_on_add === 0 ? '送らない' : '送る'}</td>
         <td style="display:flex;gap:6px;">
           <button class="btn btn-ghost btn-sm" onclick="openEditSR(${JSON.stringify(r).replace(/"/g,'&quot;')})">編集</button>
           <button class="btn btn-danger btn-sm" onclick="deleteStatusRole(${r.id})">削除</button>
@@ -673,11 +680,12 @@ async function addStatusRole() {
   const emoji = getEmojiValue('sr');
   const role_id = document.getElementById('sr-role').value;
   const label = document.getElementById('sr-label').value.trim();
+  const dm_on_add = Number(document.getElementById('sr-dm-on-add').value);
   if (!channel_id || !message_id || !emoji || !role_id) {
     toast('必須項目を入力してください', 'error'); return;
   }
   try {
-    await api('/api/status-roles', 'POST', { channel_id, message_id, emoji, role_id, label: label || null });
+    await api('/api/status-roles', 'POST', { channel_id, message_id, emoji, role_id, label: label || null, dm_on_add });
     toast('追加しました', 'success');
     document.getElementById('sr-channel').selectedIndex = 0;
     document.getElementById('sr-message').value = '';
@@ -686,6 +694,7 @@ async function addStatusRole() {
     document.getElementById('sr-emoji-text').style.display = 'none';
     document.getElementById('sr-role').selectedIndex = 0;
     document.getElementById('sr-label').value = '';
+    document.getElementById('sr-dm-on-add').value = '1';
     await loadStatusRoles();
   } catch (e) {
     toast('追加失敗: ' + e, 'error');
@@ -705,6 +714,7 @@ function openEditSR(item) {
   setEmojiValue('modal-sr', item.emoji);
   document.getElementById('modal-sr-role').value = item.role_id;
   document.getElementById('modal-sr-label').value = item.label || '';
+  document.getElementById('modal-sr-dm-on-add').value = String(item.dm_on_add ?? 1);
 
   document.getElementById('modal-overlay').classList.remove('hidden');
 }

@@ -78,6 +78,14 @@
           <label>ラベル (任意)</label>
           <input type="text" id="rr-label" placeholder="説明" />
         </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label for="rr-dm-on-add">付与時のDM</label>
+          <select id="rr-dm-on-add" aria-describedby="rr-dm-help">
+            <option value="1">送る</option>
+            <option value="0">送らない</option>
+          </select>
+          <small id="rr-dm-help" style="color:var(--text-muted);">解除時などの通知は対象外です。</small>
+        </div>
         <button class="btn btn-primary" onclick="addReactionRole()" style="margin-bottom:0;">追加</button>
       </div>
     </div>
@@ -201,6 +209,14 @@
           <label>ラベル (任意)</label>
           <input type="text" id="sr-label" placeholder="例: ゲーム中" />
         </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label for="sr-dm-on-add">付与時のDM</label>
+          <select id="sr-dm-on-add" aria-describedby="sr-dm-help">
+            <option value="1">送る</option>
+            <option value="0">送らない</option>
+          </select>
+          <small id="sr-dm-help" style="color:var(--text-muted);">解除時などの通知は対象外です。</small>
+        </div>
         <button class="btn btn-primary" onclick="addStatusRole()" style="margin-bottom:0;">追加</button>
       </div>
     </div>
@@ -245,6 +261,14 @@
             <label>ラベル (任意)</label>
             <input type="text" id="modal-rr-label" placeholder="説明" />
           </div>
+          <div class="form-group" style="margin-top:10px;">
+            <label for="modal-rr-dm-on-add">付与時のDM</label>
+            <select id="modal-rr-dm-on-add" aria-describedby="modal-rr-dm-help">
+              <option value="1">送る</option>
+              <option value="0">送らない</option>
+            </select>
+            <small id="modal-rr-dm-help" style="color:var(--text-muted);">解除時などの通知は対象外です。</small>
+          </div>
         </div>
 
         <!-- Status Role edit fields -->
@@ -276,6 +300,14 @@
           <div class="form-group">
             <label>ラベル (任意)</label>
             <input type="text" id="modal-sr-label" placeholder="例: ゲーム中" />
+          </div>
+          <div class="form-group" style="margin-top:10px;">
+            <label for="modal-sr-dm-on-add">付与時のDM</label>
+            <select id="modal-sr-dm-on-add" aria-describedby="modal-sr-dm-help">
+              <option value="1">送る</option>
+              <option value="0">送らない</option>
+            </select>
+            <small id="modal-sr-dm-help" style="color:var(--text-muted);">解除時などの通知は対象外です。</small>
           </div>
         </div>
 

@@ -18,10 +18,10 @@ export function createReactionRole(
 ): number {
   const result = getDb()
     .prepare(
-      `INSERT INTO reaction_roles (guild_id, channel_id, message_id, emoji, role_id, label)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO reaction_roles (guild_id, channel_id, message_id, emoji, role_id, label, dm_on_add)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(data.guild_id, data.channel_id, data.message_id, data.emoji, data.role_id, data.label ?? null);
+    .run(data.guild_id, data.channel_id, data.message_id, data.emoji, data.role_id, data.label ?? null, data.dm_on_add);
   return result.lastInsertRowid as number;
 }
 

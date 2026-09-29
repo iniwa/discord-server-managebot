@@ -34,6 +34,7 @@ export interface ReactionRole {
   emoji: string;
   role_id: string;
   label: string | null;
+  dm_on_add: 0 | 1;
   created_at: string;
 }
 
@@ -67,6 +68,7 @@ export interface StatusRole {
   emoji: string;
   role_id: string;
   label: string | null;
+  dm_on_add: 0 | 1;
   created_at: string;
 }
 

@@ -50,7 +50,7 @@ for (const kind of ['reaction', 'status']) {
       assert.deepEqual(sent[0].allowedMentions, { parse: [] });
       assert.equal(sent[0].content, 'Choose your role @everyone');
       assert.equal((await (await fetch(url)).json())[0].message_content, 'Choose your role @everyone');
-      assert.equal(sent[0].components[0].toJSON().components[0].custom_id, `role:${kind}:${id}`);
+      assert.equal(sent[0].components[0].toJSON().components[0].custom_id, `role:${kind}:${id}:0`);
       const updated = await request('PUT', `/${id}`, { ...fixture, label: 'Updated', emoji: '' });
       assert.equal(updated.status, 200);
       assert.equal((await updated.json()).message_url, 'https://discord.com/channels/test-guild/channel/posted-1');
@@ -87,6 +87,27 @@ for (const kind of ['reaction', 'status']) {
       assert.equal(sent[3].components[0].toJSON().components[0].emoji, undefined);
       assert.equal(list()[0].message_content, null);
       assert.ok(sent[3].content.startsWith('ボタンで'));
+      for (const count of [1, 2, 5, 6, 25]) {
+        const buttons = Array.from({ length: count }, (_, index) => ({ role_id: `role-${index}`, emoji: '', label: `Button ${index}` }));
+        const multi = await request('POST', '', { channel_id: fixture.channel_id, buttons });
+        assert.equal(multi.status, 201);
+        const { id: multiId } = await multi.json();
+        const message = sent.at(-1);
+        assert.equal(message.components.length, Math.ceil(count / 5));
+        const components = message.components.flatMap(row => row.toJSON().components);
+        assert.equal(components.length, count);
+        components.forEach((component, index) => {
+          assert.equal(component.custom_id, `role:${kind}:${multiId}:${index}`);
+          assert.equal(component.emoji, undefined);
+        });
+        const saved = list().find(row => row.id === multiId);
+        assert.deepEqual(saved.buttons, buttons);
+        assert.equal(saved.role_id, 'role-0');
+        assert.equal(Object.hasOwn(saved, 'buttons_json'), false);
+      }
+      for (const buttons of [[], Array.from({ length: 26 }, (_, i) => ({ role_id: `role-${i}` })), [{ role_id: 'same' }, { role_id: 'same' }], [{ role_id: 'role', label: 'x'.repeat(81) }]]) {
+        assert.equal((await request('POST', '', { channel_id: fixture.channel_id, buttons })).status, 400);
+      }
     } finally {
       await new Promise(resolve => server.close(resolve));
     }
@@ -173,11 +194,13 @@ test('message content migration preserves legacy rows and saved content on rerun
     runMigrations(db);
     for (const table of ['reaction_roles', 'status_roles']) {
       db.exec(`ALTER TABLE ${table} DROP COLUMN message_content`);
+      db.exec(`ALTER TABLE ${table} DROP COLUMN buttons_json`);
       db.prepare(`INSERT INTO ${table} (guild_id, channel_id, message_id, emoji, role_id, label) VALUES (?, ?, ?, ?, ?, ?)`).run(fixture.guild_id, fixture.channel_id, fixture.message_id, fixture.emoji, fixture.role_id, fixture.label);
     }
     runMigrations(db);
     for (const table of ['reaction_roles', 'status_roles']) {
       assert.equal(db.prepare(`SELECT message_content FROM ${table}`).get().message_content, null);
+      assert.equal(db.prepare(`SELECT buttons_json FROM ${table}`).get().buttons_json, null);
       db.prepare(`UPDATE ${table} SET message_content = ?`).run('Saved body');
     }
     runMigrations(db);
@@ -189,4 +212,36 @@ test('message content migration preserves legacy rows and saved content on rerun
     }
     assert.deepEqual(db.pragma('foreign_key_check'), []);
   } finally { db.close(); }
+});
+
+test('missing later role aborts the whole multi-button post', async () => {
+  const queries = require('../dist/db/queries/reactionRoles');
+  const buttons = [{ role_id: 'present', emoji: '', label: null }, { role_id: 'missing', emoji: '', label: null }];
+  const id = queries.createReactionRole({ ...fixture, message_id: 'missing-later-role', buttons });
+  const config = queries.listReactionRoles(fixture.guild_id).find(row => row.id === id);
+  let sent = false;
+  bot.getClient = () => ({ guilds: { fetch: async () => ({
+    channels: { fetch: async () => ({ isTextBased: () => true, send: async () => { sent = true; } }) },
+    roles: { fetch: async roleId => roleId === 'present' ? { name: 'Present' } : null },
+  }) } });
+  await assert.rejects(require('../dist/bot/roleButtons').publishRoleButton('reaction', config));
+  assert.equal(sent, false);
+});
+
+test('concurrent second-button change prevents stale publication', async () => {
+  const queries = require('../dist/db/queries/reactionRoles');
+  const buttons = [{ role_id: 'first', emoji: '', label: null }, { role_id: 'second', emoji: '', label: null }];
+  const id = queries.createReactionRole({ ...fixture, message_id: 'multi-race', buttons });
+  const config = queries.listReactionRoles(fixture.guild_id).find(row => row.id === id);
+  let deleted = false;
+  bot.getClient = () => ({ guilds: { fetch: async () => ({
+    channels: { fetch: async () => ({ isTextBased: () => true, send: async () => {
+      queries.updateReactionRole(id, { buttons: [buttons[0], { ...buttons[1], role_id: 'changed' }] });
+      return { id: 'stale-multi', delete: async () => { deleted = true; } };
+    } }) },
+    roles: { fetch: async () => ({ name: 'Role' }) },
+  }) } });
+  await assert.rejects(require('../dist/bot/roleButtons').publishRoleButton('reaction', config), /changed while publishing/);
+  assert.equal(deleted, true);
+  assert.equal(queries.listReactionRoles(fixture.guild_id).find(row => row.id === id).buttons[1].role_id, 'changed');
 });

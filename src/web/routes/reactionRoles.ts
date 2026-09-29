@@ -13,13 +13,24 @@ const GUILD_ID = process.env.DISCORD_GUILD_ID!;
 
 function fields(body: unknown, previousContent: string | null = null) {
   if (!body || typeof body !== 'object') return null;
-  const { channel_id, emoji, role_id, label, message_content } = body as Record<string, unknown>;
+  const input = body as Record<string, unknown>;
+  const { channel_id, message_content } = input;
   if (typeof channel_id !== 'string' || !channel_id.trim()
-    || (emoji !== undefined && typeof emoji !== 'string')
-    || typeof role_id !== 'string' || !role_id.trim()
-    || (message_content !== undefined && message_content !== null && (typeof message_content !== 'string' || message_content.length > 2000))
-    || (label !== undefined && label !== null && typeof label !== 'string')) return null;
-  return { channel_id: channel_id.trim(), emoji: typeof emoji === 'string' ? emoji.trim() : '', role_id: role_id.trim(), label: typeof label === 'string' ? label : null, message_content: message_content === undefined ? previousContent : (typeof message_content === 'string' ? message_content.trim() || null : null) };
+    || (message_content !== undefined && message_content !== null && (typeof message_content !== 'string' || message_content.length > 2000))) return null;
+  const rawButtons = input.buttons === undefined ? [input] : input.buttons;
+  if (!Array.isArray(rawButtons) || rawButtons.length < 1 || rawButtons.length > 25) return null;
+  const buttons: { role_id: string; emoji: string; label: string | null }[] = [];
+  for (const raw of rawButtons) {
+    if (!raw || typeof raw !== 'object') return null;
+    const { role_id, emoji, label } = raw as Record<string, unknown>;
+    if (typeof role_id !== 'string' || !role_id.trim()
+      || (emoji !== undefined && typeof emoji !== 'string')
+      || (label !== undefined && label !== null && (typeof label !== 'string' || label.length > 80))) return null;
+    if (buttons.some((button) => button.role_id === role_id.trim())) return null;
+    buttons.push({ role_id: role_id.trim(), emoji: typeof emoji === 'string' ? emoji.trim() : '', label: typeof label === 'string' ? label.trim() || null : null });
+  }
+  return { channel_id: channel_id.trim(), ...buttons[0], buttons,
+    message_content: message_content === undefined ? previousContent : (typeof message_content === 'string' ? message_content.trim() || null : null) };
 }
 
 function findConfig(rawId: string) {
@@ -33,7 +44,7 @@ router.get('/', (_req, res) => {
 
 router.post('/', async (req, res) => {
   const data = fields(req.body);
-  if (!data) return res.status(400).json({ error: '投稿先とロールを選択し、本文は2000文字以内で入力してください。' });
+  if (!data) return res.status(400).json({ error: '投稿先と1〜25個のボタンを設定してください。ロールの重複は不可、ボタン名は80文字、本文は2000文字以内です。' });
   let id: number;
   try {
     id = createReactionRole({ guild_id: GUILD_ID, ...data, message_id: randomUUID() });
@@ -54,7 +65,7 @@ router.put('/:id', async (req, res) => {
   const config = findConfig(req.params.id);
   if (!config) return res.status(404).json({ error: '設定が見つかりません。一覧を更新してください。' });
   const data = fields(req.body, config.message_content ?? null);
-  if (!data) return res.status(400).json({ error: '投稿先とロールを選択し、本文は2000文字以内で入力してください。' });
+  if (!data) return res.status(400).json({ error: '投稿先と1〜25個のボタンを設定してください。ロールの重複は不可、ボタン名は80文字、本文は2000文字以内です。' });
   const message_id = randomUUID();
   try {
     // Invalidate the old button before publishing, including when publishing fails.

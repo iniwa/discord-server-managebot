@@ -73,6 +73,19 @@ function chooseRequired(page, prefix = 'rr') {
   page.document.getElementById(`${prefix}-role`).value = 'role-1';
 }
 
+function editorId(index, prefix = 'rr') { return index === 0 ? prefix : `${prefix}-button-${index}`; }
+
+function setButton(page, index, { role = 'role-1', label = '', emoji = '' } = {}, prefix = 'rr') {
+  const id = editorId(index, prefix);
+  page.document.getElementById(`${id}-role`).value = role;
+  page.document.getElementById(`${id}-label`).value = label;
+  const select = page.document.getElementById(`${id}-emoji-select`);
+  const text = page.document.getElementById(`${id}-emoji-text`);
+  if (emoji) { select.value = '__unicode__'; text.value = emoji; }
+  else { select.value = emoji; text.value = ''; }
+  page.document.getElementById(`${id}-label`).dispatchEvent(new page.window.Event('input', { bubbles: true }));
+}
+
 function submit(page, prefix = 'rr') {
   page.document.getElementById(`${prefix}-submit`).click();
 }
@@ -89,14 +102,15 @@ test('submits all fields including custom emoji through the real form and keeps 
   page.document.getElementById('rr-content').dispatchEvent(new page.window.Event('input', { bubbles: true }));
   assert.equal(page.document.getElementById('rr-preview-content').textContent, '<img src=x onerror="bad()"> @everyone');
   assert.equal(page.document.getElementById('rr-preview-content').querySelector('img'), null);
-  assert.match(page.document.getElementById('rr-preview-button').textContent, /:party:/);
+  assert.match(page.document.querySelector('#rr-preview-buttons .discord-button').textContent, /:party:/);
 
   submit(page);
   await waitFor(() => page.requests.some(r => r.url === '/api/reaction-roles' && r.method === 'POST'), 'POST was not sent');
   const sent = page.requests.find(r => r.url === '/api/reaction-roles' && r.method === 'POST');
   assert.deepEqual(sent.body, {
-    channel_id: 'channel-1', role_id: 'role-1', label: 'A <script>bad()</script> button',
-    emoji: '<:party:123456>', message_content: '<img src=x onerror="bad()"> @everyone',
+    channel_id: 'channel-1',
+    buttons: [{ role_id: 'role-1', label: 'A <script>bad()</script> button', emoji: '<:party:123456>' }],
+    message_content: '<img src=x onerror="bad()"> @everyone',
   });
   await waitFor(() => page.document.getElementById('rr-feedback').classList.contains('success'), 'success feedback missing');
   await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'submit did not finish');
@@ -108,8 +122,90 @@ test('emoji is optional and an empty emoji can be submitted', async () => {
   chooseRequired(page);
   submit(page);
   await waitFor(() => page.requests.some(r => r.url === '/api/reaction-roles' && r.method === 'POST'), 'POST was not sent');
-  assert.equal(page.requests.find(r => r.url === '/api/reaction-roles' && r.method === 'POST').body.emoji, '');
+  assert.deepEqual(page.requests.find(r => r.url === '/api/reaction-roles' && r.method === 'POST').body.buttons,
+    [{ role_id: 'role-1', label: null, emoji: '' }]);
   await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'POST did not finish');
+  await close(page);
+});
+
+test('adds, reorders, removes, previews, and submits multiple buttons in one POST', async () => {
+  const page = await createPage();
+  chooseRequired(page);
+  setButton(page, 0, { role: 'role-1', label: 'First' });
+  page.document.getElementById('rr-add-button').click();
+  page.document.getElementById('rr-add-button').click();
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 3);
+  setButton(page, 1, { role: 'role-2', label: 'Second' });
+  setButton(page, 2, { role: 'role-1', label: 'Third' });
+
+  page.document.querySelector('#rr-button-editors [data-index="0"][data-button-action="down"]').click();
+  assert.equal(page.document.getElementById('rr-button-1-role').value, 'role-1');
+  assert.equal(page.document.getElementById('rr-button-1-label').value, 'First');
+  page.document.querySelector('#rr-button-editors [data-index="2"][data-button-action="remove"]').click();
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 2);
+  assert.equal(page.document.getElementById('rr-role').value, 'role-2');
+  assert.equal(page.document.getElementById('rr-button-1-role').value, 'role-1');
+  assert.deepEqual([...page.document.querySelectorAll('#rr-preview-buttons .discord-button')].map(button => button.textContent), ['Second', 'First']);
+
+  submit(page);
+  await waitFor(() => page.requests.some(r => r.url === '/api/reaction-roles' && r.method === 'POST'), 'multi-button POST missing');
+  const posts = page.requests.filter(r => r.url === '/api/reaction-roles' && r.method === 'POST');
+  assert.equal(posts.length, 1);
+  assert.deepEqual(posts[0].body.buttons, [
+    { role_id: 'role-2', label: 'Second', emoji: '' },
+    { role_id: 'role-1', label: 'First', emoji: '' },
+  ]);
+  assert.equal(posts[0].body.channel_id, 'channel-1');
+  await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'multi-button POST did not finish');
+  await close(page);
+});
+
+test('allows at most 25 button editors and preview wraps six buttons into two rows', async () => {
+  const page = await createPage();
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 1);
+  for (let index = 1; index < 25; index++) page.document.getElementById('rr-add-button').click();
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 25);
+  assert.equal(page.document.getElementById('rr-add-button').disabled, true);
+  page.document.getElementById('rr-add-button').click();
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 25);
+
+  while (page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length > 6) {
+    const last = page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length - 1;
+    page.document.querySelector(`#rr-button-editors [data-index="${last}"][data-button-action="remove"]`).click();
+  }
+  for (let index = 0; index < 6; index++) setButton(page, index, { role: index % 2 ? 'role-2' : 'role-1', label: `Button ${index + 1}` });
+  assert.equal(page.document.querySelectorAll('#rr-preview-buttons .discord-button-row').length, 2);
+  assert.equal(page.document.querySelectorAll('#rr-preview-buttons .discord-button').length, 6);
+  await close(page);
+});
+
+test('cannot add editors before Discord role/channel data is ready', async () => {
+  let finishRoles;
+  const page = await createPage(req => {
+    if (req.url === '/api/discord/roles') return new Promise(resolve => { finishRoles = resolve; });
+    return defaultData(req.url);
+  }, { waitForReady: false });
+  await waitFor(() => typeof finishRoles === 'function', 'role data fetch did not start');
+  assert.equal(page.document.getElementById('rr-fields').disabled, true);
+  page.document.getElementById('rr-add-button').click();
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 1);
+  finishRoles(response(initialRoles));
+  await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'role data did not become ready');
+  page.document.getElementById('rr-add-button').click();
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 2);
+  await close(page);
+});
+
+test('rejects duplicate roles before posting', async () => {
+  const page = await createPage();
+  chooseRequired(page);
+  page.document.getElementById('rr-add-button').click();
+  setButton(page, 1, { role: 'role-1', label: 'Duplicate' });
+  submit(page);
+  const feedback = page.document.getElementById('rr-feedback');
+  await waitFor(() => feedback.getAttribute('role') === 'alert' && !feedback.hidden, 'duplicate-role alert missing');
+  assert.match(feedback.textContent, /ロールが重複しています/);
+  assert.equal(page.requests.some(r => r.url === '/api/reaction-roles' && r.method === 'POST'), false);
   await close(page);
 });
 
@@ -181,6 +277,33 @@ for (const failure of [
   });
 }
 
+test('failed multi-button submission preserves every editor value for retry', async () => {
+  let failed = false;
+  const page = await createPage(req => {
+    if (req.url === '/api/reaction-roles' && req.method === 'POST' && !failed) {
+      failed = true;
+      return response({ error: 'Discord unavailable' }, 502);
+    }
+    return defaultData(req.url);
+  });
+  chooseRequired(page);
+  setButton(page, 0, { role: 'role-1', label: 'Primary' });
+  page.document.getElementById('rr-add-button').click();
+  setButton(page, 1, { role: 'role-2', label: 'Secondary', emoji: '🎮' });
+  submit(page);
+  const feedback = page.document.getElementById('rr-feedback');
+  await waitFor(() => feedback.getAttribute('role') === 'alert', 'multi-button error not shown');
+  await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'failed multi-button submit did not finish');
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 2);
+  assert.deepEqual([0, 1].map(index => page.document.getElementById(`${editorId(index)}-role`).value), ['role-1', 'role-2']);
+  assert.deepEqual([0, 1].map(index => page.document.getElementById(`${editorId(index)}-label`).value), ['Primary', 'Secondary']);
+  assert.equal(page.document.getElementById('rr-button-1-emoji-text').value, '🎮');
+  submit(page);
+  await waitFor(() => page.document.getElementById('rr-feedback').classList.contains('success'), 'retry did not succeed');
+  await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'retry did not finish');
+  await close(page);
+});
+
 test('list edit reuses the composer PUT; publish and delete use their intended routes', async () => {
   const page = await createPage();
   const list = page.document.getElementById('reaction-roles-list');
@@ -191,7 +314,7 @@ test('list edit reuses the composer PUT; publish and delete use their intended r
   submit(page);
   await waitFor(() => page.requests.some(r => r.url === '/api/reaction-roles/7' && r.method === 'PUT'), 'edit did not PUT');
   const put = page.requests.find(r => r.url === '/api/reaction-roles/7' && r.method === 'PUT');
-  assert.equal(put.body.label, 'Changed label');
+  assert.equal(put.body.buttons[0].label, 'Changed label');
   await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'edit submit did not finish');
 
   list.querySelector('button[data-action="publish"]').click();
@@ -200,6 +323,34 @@ test('list edit reuses the composer PUT; publish and delete use their intended r
   list.querySelector('button[data-action="delete"]').click();
   await waitFor(() => page.requests.some(r => r.url === '/api/reaction-roles/7' && r.method === 'DELETE'), 'delete route missing');
   await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'delete did not finish');
+  await close(page);
+});
+
+test('editing a saved multi-button post restores every button and sends the collection on PUT', async () => {
+  const buttons = [
+    { role_id: 'role-1', label: 'First saved', emoji: '🎮' },
+    { role_id: 'role-2', label: 'Second saved', emoji: '<:party:123456>' },
+  ];
+  const page = await createPage(req => {
+    if (req.url === '/api/reaction-roles' && req.method === 'GET') return response([{ ...savedRow, buttons }]);
+    return defaultData(req.url);
+  });
+  page.document.querySelector('#reaction-roles-list button[data-action="edit"]').click();
+  assert.equal(page.document.querySelectorAll('#rr-button-editors [data-button-editor]').length, 2);
+  assert.deepEqual([0, 1].map(index => page.document.getElementById(`${editorId(index)}-role`).value), ['role-1', 'role-2']);
+  assert.deepEqual([0, 1].map(index => page.document.getElementById(`${editorId(index)}-label`).value), ['First saved', 'Second saved']);
+  assert.deepEqual([0, 1].map(index => page.document.getElementById(`${editorId(index)}-emoji-text`).value), ['🎮', '']);
+  assert.equal(page.document.getElementById('rr-button-1-emoji-select').value, '<:party:123456>');
+
+  page.document.getElementById('rr-button-1-label').value = 'Second changed';
+  submit(page);
+  await waitFor(() => page.requests.some(r => r.url === '/api/reaction-roles/7' && r.method === 'PUT'), 'multi-button edit did not PUT');
+  const put = page.requests.find(r => r.url === '/api/reaction-roles/7' && r.method === 'PUT');
+  assert.deepEqual(put.body.buttons, [
+    { role_id: 'role-1', label: 'First saved', emoji: '🎮' },
+    { role_id: 'role-2', label: 'Second changed', emoji: '<:party:123456>' },
+  ]);
+  await waitFor(() => !page.document.getElementById('rr-submit').disabled, 'multi-button PUT did not finish');
   await close(page);
 });
 

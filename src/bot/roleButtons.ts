@@ -41,13 +41,20 @@ export async function publishRoleButton(
   if (!channel || !channel.isTextBased() || !('send' in channel)) {
     throw new RoleButtonError('channel');
   }
-  const role = await guild.roles.fetch(config.role_id);
-  if (!role) throw new RoleButtonError('role');
-  const button = new ButtonBuilder()
-    .setCustomId(`role:${kind}:${config.id}`)
-    .setStyle(ButtonStyle.Primary)
-    .setLabel((config.label?.trim() || role.name).slice(0, 80));
-  if (config.emoji.trim()) button.setEmoji(config.emoji);
+  const settings = config.buttons ?? [{ role_id: config.role_id, emoji: config.emoji, label: config.label }];
+  if (settings.length < 1 || settings.length > 25) throw new RoleButtonError('role');
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+  for (const [index, setting] of settings.entries()) {
+    const role = await guild.roles.fetch(setting.role_id);
+    if (!role) throw new RoleButtonError('role');
+    const button = new ButtonBuilder()
+      .setCustomId(`role:${kind}:${config.id}:${index}`)
+      .setStyle(ButtonStyle.Primary)
+      .setLabel((setting.label?.trim() || role.name).slice(0, 80));
+    if (setting.emoji.trim()) button.setEmoji(setting.emoji);
+    if (index % 5 === 0) rows.push(new ActionRowBuilder<ButtonBuilder>());
+    rows[rows.length - 1].addComponents(button);
+  }
   const assertCurrent = () => {
     const list = kind === 'reaction' ? listReactionRoles : listStatusRoles;
     const current = list(config.guild_id).find((entry) => entry.id === config.id);
@@ -59,13 +66,14 @@ export async function publishRoleButton(
     if ((current.message_content ?? null) !== (config.message_content ?? null)) {
       throw new RoleButtonError('changed');
     }
+    if (JSON.stringify(current.buttons) !== JSON.stringify(settings)) throw new RoleButtonError('changed');
   };
   assertCurrent();
   const message = await channel.send({
     content: config.message_content?.trim() || (kind === 'status'
       ? 'ボタンでステータスロールを切り替えます。付与はVC参加中のみ可能で、VC退出時に自動解除されます。操作結果はあなただけに表示されます。'
       : 'ボタンでロールの付与・解除を切り替えます。操作結果はあなただけに表示されます。'),
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(button)],
+    components: rows,
     allowedMentions: { parse: [] },
   });
   try {

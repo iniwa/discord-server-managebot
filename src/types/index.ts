@@ -26,7 +26,14 @@ export interface RoleSnapshotMember {
   display_name: string;
 }
 
+export interface RoleButtonConfig {
+  role_id: string;
+  emoji: string;
+  label: string | null;
+}
+
 export interface ReactionRole {
+  buttons?: RoleButtonConfig[];
   id: number;
   guild_id: string;
   channel_id: string;
@@ -61,6 +68,7 @@ export interface BotLog {
 }
 
 export interface StatusRole {
+  buttons?: RoleButtonConfig[];
   id: number;
   guild_id: string;
   channel_id: string;

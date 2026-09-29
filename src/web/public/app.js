@@ -57,7 +57,6 @@ async function loadDiscordData() {
 }
 
 function populateAllSelects() {
-  populateRoleSelect('rr-role');
   populateRoleSelect('vr-role');
   populateRoleSelect('member-filter-role');
   populateRoleSelect('modal-vr-role');
@@ -66,9 +65,6 @@ function populateAllSelects() {
   populateChannelSelect('vr-channel', true);      // VCのみ
   populateChannelSelect('modal-vr-channel', true);
 
-  populateEmojiSelect('rr-emoji-select');
-  populateEmojiSelect('sr-emoji-select');
-  populateRoleSelect('sr-role');
 
   populateChannelSelect('sr-channel', false);
 }

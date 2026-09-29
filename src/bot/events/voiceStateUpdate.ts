@@ -35,7 +35,7 @@ export function registerVoiceStateUpdate(client: Client): void {
       // ── 通話から完全退出したとき ──────────────────────────────────────
       if (oldState.channelId && !newState.channelId) {
         // ステータスロール: 対象ロールを全て除去
-        const statusRoles = listStatusRoles(guild.id);
+        const statusRoles = listStatusRoles(guild.id).flatMap((config) => config.buttons ?? [config]);
         for (const config of statusRoles) {
           if (member.roles.cache.has(config.role_id)) {
             await member.roles.remove(config.role_id);

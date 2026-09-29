@@ -403,3 +403,11 @@ button:disabled { opacity: .55; cursor: wait; }
   .tab-btn { white-space: nowrap; }
   .tab-panel { padding: 16px; }
 }
+
+.button-editor { padding: 16px; margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2); }
+.button-editor-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 12px; }
+.button-editor-heading h4 { margin: 0; }
+.button-editor .form-group:last-child { margin-bottom: 0; }
+.discord-button-rows { display: grid; gap: 8px; }
+.discord-button-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.discord-button-row .discord-button { padding: 8px 10px; font-size: 13px; }

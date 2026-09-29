@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Discord Server Manager</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=role-composer-2" />
+  <link rel="stylesheet" href="style.css?v=multi-role-buttons-3" />
 </head>
 <body>
   <header>
@@ -54,18 +54,18 @@
     <div class="role-page-heading"><div><h2>ボタンロール</h2><p>押すたびにロールを付与・解除するボタンを、Discordに投稿します。</p></div><span class="badge">操作結果は本人だけに表示</span></div>
     <div class="role-workspace">
       <form class="card role-composer" id="rr-form" novalidate>
-        <h3 id="rr-heading">新しいボタンを作成</h3>
-        <p class="role-help">1つのボタンで1つのロールを付与・解除します。必須項目は投稿先とロールだけです。</p>
+        <h3 id="rr-heading">新しい投稿を作成</h3>
+        <p class="role-help">本文と投稿先を共通にして、ロールごとのボタンをまとめて投稿します。</p>
         <div id="rr-data-status" class="role-feedback" role="status">Discordの選択肢を読み込んでいます…</div>
         <button type="button" class="btn btn-ghost btn-sm" onclick="loadDiscordData()">選択肢を再読み込み</button>
         <fieldset id="rr-fields" disabled>
-          <legend>1. 投稿先とロール</legend>
+          <legend>1. 投稿先とメッセージ</legend>
           <div class="form-group"><label for="rr-channel">投稿先チャンネル <span class="required">必須</span></label><select id="rr-channel" required><option value="">チャンネルを選択</option></select></div>
-          <div class="form-group"><label for="rr-role">付与するロール <span class="required">必須</span></label><select id="rr-role" required><option value="">ロールを選択</option></select></div>
-          <h4>2. 投稿メッセージとボタン</h4>
           <div class="form-group"><label for="rr-content">投稿メッセージ <span>任意・2000文字以内</span></label><textarea id="rr-content" rows="5" maxlength="2000" placeholder="例: 通知を受け取りたい方は、下のボタンを押してください。"></textarea><small>空欄なら標準の案内文を使います。@everyoneなどを書いても通知は送りません。</small></div>
-          <div class="form-group"><label for="rr-label">ボタン名 <span>任意</span></label><input type="text" id="rr-label" maxlength="80" placeholder="空欄ならロール名" /></div>
-          <div class="form-group"><label for="rr-emoji-select">絵文字 <span>任意</span></label><select id="rr-emoji-select" onchange="onEmojiSelectChange('rr')"><option value="">絵文字なし</option><option value="__unicode__">絵文字を入力する</option></select><input type="text" id="rr-emoji-text" aria-label="絵文字を入力" placeholder="例: 🎮" style="display:none;" /></div>
+          <h4>2. ロールごとのボタン</h4>
+          <p class="role-help">1つの投稿に最大25個まで設置できます。並び順に5個ずつ表示します。</p>
+          <div id="rr-button-editors" class="button-editors"></div>
+          <button type="button" class="btn btn-ghost" id="rr-add-button">＋ ボタンを追加</button>
         </fieldset>
         <div id="rr-feedback" class="role-feedback" role="status" aria-live="polite" hidden></div>
         <div class="role-actions"><button class="btn btn-primary" id="rr-submit" type="submit" disabled>Discordに投稿する</button><button class="btn btn-ghost" id="rr-cancel" type="button" hidden>編集をやめる</button></div>
@@ -73,7 +73,7 @@
       </form>
       <aside class="card role-preview" aria-label="Discord投稿プレビュー">
         <h3>3. 投稿イメージ</h3><p class="role-preview-channel" id="rr-preview-channel"># 投稿先を選択してください</p>
-        <div class="discord-preview"><span class="badge">BOT</span><p id="rr-preview-content">ボタンでロールの付与・解除を切り替えます。操作結果はあなただけに表示されます。</p><span class="discord-button" id="rr-preview-button">ロールを選択してください</span></div>
+        <div class="discord-preview"><span class="badge">BOT</span><p id="rr-preview-content">ボタンでロールの付与・解除を切り替えます。操作結果はあなただけに表示されます。</p><div class="discord-button-rows" id="rr-preview-buttons"></div></div>
         <p class="role-help">プレビューは操作できません。投稿後、Discord上のボタンでロールを切り替えます。DMは送りません。</p>
       </aside>
     </div>
@@ -162,18 +162,18 @@
     <div class="role-page-heading"><div><h2>通話中のボタンロール</h2><p>通話中だけ付与でき、通話から完全退出すると自動で外れるロールです。</p></div><span class="badge">操作結果は本人だけに表示</span></div>
     <div class="role-workspace">
       <form class="card role-composer" id="sr-form" novalidate>
-        <h3 id="sr-heading">新しいボタンを作成</h3>
-        <p class="role-help">1つのボタンで1つのロールを付与・解除します。必須項目は投稿先とロールだけです。</p>
+        <h3 id="sr-heading">新しい投稿を作成</h3>
+        <p class="role-help">本文と投稿先を共通にして、ロールごとのボタンをまとめて投稿します。</p>
         <div id="sr-data-status" class="role-feedback" role="status">Discordの選択肢を読み込んでいます…</div>
         <button type="button" class="btn btn-ghost btn-sm" onclick="loadDiscordData()">選択肢を再読み込み</button>
         <fieldset id="sr-fields" disabled>
-          <legend>1. 投稿先とロール</legend>
+          <legend>1. 投稿先とメッセージ</legend>
           <div class="form-group"><label for="sr-channel">投稿先チャンネル <span class="required">必須</span></label><select id="sr-channel" required><option value="">チャンネルを選択</option></select></div>
-          <div class="form-group"><label for="sr-role">付与するロール <span class="required">必須</span></label><select id="sr-role" required><option value="">ロールを選択</option></select></div>
-          <h4>2. 投稿メッセージとボタン</h4>
           <div class="form-group"><label for="sr-content">投稿メッセージ <span>任意・2000文字以内</span></label><textarea id="sr-content" rows="5" maxlength="2000" placeholder="例: 通知を受け取りたい方は、下のボタンを押してください。"></textarea><small>空欄なら標準の案内文を使います。@everyoneなどを書いても通知は送りません。</small></div>
-          <div class="form-group"><label for="sr-label">ボタン名 <span>任意</span></label><input type="text" id="sr-label" maxlength="80" placeholder="空欄ならロール名" /></div>
-          <div class="form-group"><label for="sr-emoji-select">絵文字 <span>任意</span></label><select id="sr-emoji-select" onchange="onEmojiSelectChange('sr')"><option value="">絵文字なし</option><option value="__unicode__">絵文字を入力する</option></select><input type="text" id="sr-emoji-text" aria-label="絵文字を入力" placeholder="例: 🎮" style="display:none;" /></div>
+          <h4>2. ロールごとのボタン</h4>
+          <p class="role-help">1つの投稿に最大25個まで設置できます。並び順に5個ずつ表示します。</p>
+          <div id="sr-button-editors" class="button-editors"></div>
+          <button type="button" class="btn btn-ghost" id="sr-add-button">＋ ボタンを追加</button>
         </fieldset>
         <div id="sr-feedback" class="role-feedback" role="status" aria-live="polite" hidden></div>
         <div class="role-actions"><button class="btn btn-primary" id="sr-submit" type="submit" disabled>Discordに投稿する</button><button class="btn btn-ghost" id="sr-cancel" type="button" hidden>編集をやめる</button></div>
@@ -181,7 +181,7 @@
       </form>
       <aside class="card role-preview" aria-label="Discord投稿プレビュー">
         <h3>3. 投稿イメージ</h3><p class="role-preview-channel" id="sr-preview-channel"># 投稿先を選択してください</p>
-        <div class="discord-preview"><span class="badge">BOT</span><p id="sr-preview-content">ボタンでステータスロールを切り替えます。付与はVC参加中のみ可能で、VC退出時に自動解除されます。操作結果はあなただけに表示されます。</p><span class="discord-button" id="sr-preview-button">ロールを選択してください</span></div>
+        <div class="discord-preview"><span class="badge">BOT</span><p id="sr-preview-content">ボタンでステータスロールを切り替えます。付与はVC参加中のみ可能で、VC退出時に自動解除されます。操作結果はあなただけに表示されます。</p><div class="discord-button-rows" id="sr-preview-buttons"></div></div>
         <p class="role-help">プレビューは操作できません。投稿後、Discord上のボタンでロールを切り替えます。DMは送りません。</p>
       </aside>
     </div>
@@ -225,7 +225,7 @@
     window.addEventListener('error', () => { document.getElementById('app-error').hidden = false; });
     window.addEventListener('unhandledrejection', () => { document.getElementById('app-error').hidden = false; });
   </script>
-  <script src="app.js?v=role-composer-2"></script>
-  <script src="button-roles.js?v=role-composer-2"></script>
+  <script src="app.js?v=multi-role-buttons-3"></script>
+  <script src="button-roles.js?v=multi-role-buttons-3"></script>
 </body>
 </html>

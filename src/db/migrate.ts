@@ -99,6 +99,9 @@ export function runMigrations(db: Database.Database): void {
       if (!columns.some((column) => column.name === 'message_content')) {
         db.exec(`ALTER TABLE ${table} ADD COLUMN message_content TEXT`);
       }
+      if (!columns.some((column) => column.name === 'buttons_json')) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN buttons_json TEXT`);
+      }
     }
   })();
 }

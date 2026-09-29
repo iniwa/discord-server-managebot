@@ -3,13 +3,13 @@ import type { ReactionRole } from '../../types/index';
 
 export function listReactionRoles(guildId: string): ReactionRole[] {
   return getDb()
-    .prepare('SELECT id, guild_id, channel_id, message_id, emoji, role_id, label, created_at FROM reaction_roles WHERE guild_id = ? ORDER BY created_at DESC')
+    .prepare('SELECT id, guild_id, channel_id, message_id, emoji, role_id, label, message_content, created_at FROM reaction_roles WHERE guild_id = ? ORDER BY created_at DESC')
     .all(guildId) as ReactionRole[];
 }
 
 export function getReactionRole(messageId: string, emoji: string): ReactionRole | undefined {
   return getDb()
-    .prepare('SELECT id, guild_id, channel_id, message_id, emoji, role_id, label, created_at FROM reaction_roles WHERE message_id = ? AND emoji = ?')
+    .prepare('SELECT id, guild_id, channel_id, message_id, emoji, role_id, label, message_content, created_at FROM reaction_roles WHERE message_id = ? AND emoji = ?')
     .get(messageId, emoji) as ReactionRole | undefined;
 }
 
@@ -18,10 +18,10 @@ export function createReactionRole(
 ): number {
   const result = getDb()
     .prepare(
-      `INSERT INTO reaction_roles (guild_id, channel_id, message_id, emoji, role_id, label)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO reaction_roles (guild_id, channel_id, message_id, emoji, role_id, label, message_content)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(data.guild_id, data.channel_id, data.message_id, data.emoji, data.role_id, data.label ?? null);
+    .run(data.guild_id, data.channel_id, data.message_id, data.emoji, data.role_id, data.label ?? null, data.message_content ?? null);
   return result.lastInsertRowid as number;
 }
 

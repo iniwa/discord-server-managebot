@@ -6,19 +6,20 @@ import {
   updateStatusRole,
   deleteStatusRole,
 } from '../../db/queries/statusRoles';
-import { publishRoleButton } from '../../bot/roleButtons';
+import { publishRoleButton, roleButtonMessageUrl, roleButtonPublishError } from '../../bot/roleButtons';
 
 const router = Router();
 const GUILD_ID = process.env.DISCORD_GUILD_ID!;
 
-function fields(body: unknown) {
+function fields(body: unknown, previousContent: string | null = null) {
   if (!body || typeof body !== 'object') return null;
-  const { channel_id, emoji, role_id, label } = body as Record<string, unknown>;
+  const { channel_id, emoji, role_id, label, message_content } = body as Record<string, unknown>;
   if (typeof channel_id !== 'string' || !channel_id.trim()
-    || typeof emoji !== 'string' || !emoji.trim()
+    || (emoji !== undefined && typeof emoji !== 'string')
     || typeof role_id !== 'string' || !role_id.trim()
+    || (message_content !== undefined && message_content !== null && (typeof message_content !== 'string' || message_content.length > 2000))
     || (label !== undefined && label !== null && typeof label !== 'string')) return null;
-  return { channel_id: channel_id.trim(), emoji: emoji.trim(), role_id: role_id.trim(), label: typeof label === 'string' ? label : null };
+  return { channel_id: channel_id.trim(), emoji: typeof emoji === 'string' ? emoji.trim() : '', role_id: role_id.trim(), label: typeof label === 'string' ? label : null, message_content: message_content === undefined ? previousContent : (typeof message_content === 'string' ? message_content.trim() || null : null) };
 }
 
 function findConfig(rawId: string) {
@@ -32,57 +33,57 @@ router.get('/', (_req, res) => {
 
 router.post('/', async (req, res) => {
   const data = fields(req.body);
-  if (!data) return res.status(400).json({ error: 'Invalid required fields' });
+  if (!data) return res.status(400).json({ error: '投稿先とロールを選択し、本文は2000文字以内で入力してください。' });
   let id: number;
   try {
     id = createStatusRole({ guild_id: GUILD_ID, ...data, message_id: randomUUID() });
   } catch {
-    return res.status(409).json({ error: 'Could not save role configuration' });
+    return res.status(409).json({ error: '設定を保存できませんでした。一覧を更新して再試行してください。' });
   }
   try {
     const config = listStatusRoles(GUILD_ID).find((entry) => entry.id === id)!;
-    await publishRoleButton('status', config);
-    return res.status(201).json({ id });
-  } catch {
+    const message_id = await publishRoleButton('status', config);
+    return res.status(201).json({ id, message_id, message_url: roleButtonMessageUrl(GUILD_ID, config.channel_id, message_id) });
+  } catch (error) {
     deleteStatusRole(id);
-    return res.status(502).json({ error: 'ボタンを投稿できませんでした。チャンネル・ロール・Botの権限を確認してください。設定は作成されていません。' });
+    return res.status(502).json({ error: roleButtonPublishError(error) + ' 設定は作成されていません。' });
   }
 });
 
 router.put('/:id', async (req, res) => {
   const config = findConfig(req.params.id);
-  if (!config) return res.status(404).json({ error: 'Role configuration not found' });
-  const data = fields(req.body);
-  if (!data) return res.status(400).json({ error: 'Invalid required fields' });
+  if (!config) return res.status(404).json({ error: '設定が見つかりません。一覧を更新してください。' });
+  const data = fields(req.body, config.message_content ?? null);
+  if (!data) return res.status(400).json({ error: '投稿先とロールを選択し、本文は2000文字以内で入力してください。' });
   const message_id = randomUUID();
   try {
     // Invalidate the old button before publishing, including when publishing fails.
     updateStatusRole(config.id, { ...data, message_id });
   } catch {
-    return res.status(409).json({ error: 'Could not save role configuration' });
+    return res.status(409).json({ error: '設定を保存できませんでした。一覧を更新して再試行してください。' });
   }
   try {
-    await publishRoleButton('status', { ...config, ...data, message_id });
-    return res.json({ ok: true });
-  } catch {
-    return res.status(502).json({ error: '設定は保存しましたが、ボタンを投稿できませんでした。チャンネル・ロール・Botの権限を確認し、再投稿してください。' });
+    const publishedId = await publishRoleButton('status', { ...config, ...data, message_id });
+    return res.json({ ok: true, id: config.id, message_id: publishedId, message_url: roleButtonMessageUrl(GUILD_ID, data.channel_id, publishedId) });
+  } catch (error) {
+    return res.status(502).json({ error: '設定は保存しましたが、投稿は完了していません。' + roleButtonPublishError(error) });
   }
 });
 
 router.post('/:id/publish', async (req, res) => {
   const config = findConfig(req.params.id);
-  if (!config) return res.status(404).json({ error: 'Role configuration not found' });
+  if (!config) return res.status(404).json({ error: '設定が見つかりません。一覧を更新してください。' });
   try {
     const message_id = await publishRoleButton('status', config);
-    return res.json({ ok: true, message_id });
-  } catch {
-    return res.status(502).json({ error: 'ボタンを投稿できませんでした。チャンネル・ロール・Botの権限を確認してください。' });
+    return res.json({ ok: true, id: config.id, message_id, message_url: roleButtonMessageUrl(GUILD_ID, config.channel_id, message_id) });
+  } catch (error) {
+    return res.status(502).json({ error: roleButtonPublishError(error) });
   }
 });
 
 router.delete('/:id', (req, res) => {
   const config = findConfig(req.params.id);
-  if (!config) return res.status(404).json({ error: 'Role configuration not found' });
+  if (!config) return res.status(404).json({ error: '設定が見つかりません。一覧を更新してください。' });
   deleteStatusRole(config.id);
   return res.status(204).send();
 });

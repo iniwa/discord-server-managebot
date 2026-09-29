@@ -8,14 +8,15 @@ let memberSortKey = 'display_name';
 let memberSortDir = 'asc';
 
 // モーダル編集対象
-let editMode = null; // 'rr' | 'vr'
+let editMode = null; // VC role modal
 let editId = null;
 
 // ── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   setupTabs();
+  setupRoleComposers();
   await loadDiscordData();
-  await Promise.all([
+  await Promise.allSettled([
     loadSnapshots(),
     loadReactionRoles(),
     loadVoiceRoles(),
@@ -40,18 +41,18 @@ function setupTabs() {
 
 // ── Discord Data ─────────────────────────────────────────────────────────
 async function loadDiscordData() {
+  setRoleDataState(false, 'Discordの選択肢を読み込んでいます…');
   try {
     const [roles, channels, emojis] = await Promise.all([
-      api('/api/discord/roles'),
-      api('/api/discord/channels'),
-      api('/api/discord/emojis'),
+      api('/api/discord/roles'), api('/api/discord/channels'),
+      api('/api/discord/emojis').catch(() => []),
     ]);
-    rolesCache = roles;
-    channelsCache = channels;
-    emojisCache = emojis;
+    rolesCache = roles; channelsCache = channels; emojisCache = emojis;
     populateAllSelects();
+    const ready = roles.length > 0 && channels.some(c => [0, 5].includes(c.type));
+    setRoleDataState(ready, ready ? '' : '選択できるロールまたは投稿先がありません。Botの接続・権限を確認し、再読み込みしてください。');
   } catch (e) {
-    console.warn('Discord data not available yet:', e);
+    setRoleDataState(false, '選択肢を読み込めませんでした。' + e.message);
   }
 }
 
@@ -59,28 +60,23 @@ function populateAllSelects() {
   populateRoleSelect('rr-role');
   populateRoleSelect('vr-role');
   populateRoleSelect('member-filter-role');
-  populateRoleSelect('modal-rr-role');
   populateRoleSelect('modal-vr-role');
 
-  populateChannelSelect('rr-channel', false);    // テキスト含む全チャンネル
+  populateChannelSelect('rr-channel', false);    // 投稿できるテキストチャンネル
   populateChannelSelect('vr-channel', true);      // VCのみ
-  populateChannelSelect('modal-rr-channel', false);
   populateChannelSelect('modal-vr-channel', true);
 
   populateEmojiSelect('rr-emoji-select');
-  populateEmojiSelect('modal-rr-emoji-select');
   populateEmojiSelect('sr-emoji-select');
-  populateEmojiSelect('modal-sr-emoji-select');
   populateRoleSelect('sr-role');
-  populateRoleSelect('modal-sr-role');
 
   populateChannelSelect('sr-channel', false);
-  populateChannelSelect('modal-sr-channel', false);
 }
 
 function populateRoleSelect(id) {
   const sel = document.getElementById(id);
   if (!sel) return;
+  const selected = sel.value;
   const first = sel.options[0];
   sel.innerHTML = '';
   sel.appendChild(first);
@@ -90,26 +86,30 @@ function populateRoleSelect(id) {
     opt.textContent = r.name;
     sel.appendChild(opt);
   });
+  sel.value = selected;
 }
 
 function populateChannelSelect(id, voiceOnly) {
   const sel = document.getElementById(id);
   if (!sel) return;
+  const selected = sel.value;
   const first = sel.options[0];
   sel.innerHTML = '';
   sel.appendChild(first);
-  const list = voiceOnly ? channelsCache.filter(c => c.isVoice) : channelsCache;
+  const list = voiceOnly ? channelsCache.filter(c => c.isVoice) : channelsCache.filter(c => [0, 5].includes(c.type));
   list.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id;
     opt.textContent = (c.isVoice ? '🔊 ' : '# ') + c.name;
     sel.appendChild(opt);
   });
+  sel.value = selected;
 }
 
 function populateEmojiSelect(id) {
   const sel = document.getElementById(id);
   if (!sel) return;
+  const selected = sel.value;
   // Keep first two options (placeholder + unicode)
   while (sel.options.length > 2) sel.remove(2);
   emojisCache.forEach(e => {
@@ -118,6 +118,7 @@ function populateEmojiSelect(id) {
     opt.textContent = (e.animated ? '[GIF] ' : '') + e.name;
     sel.appendChild(opt);
   });
+  sel.value = Array.from(sel.options).some(option => option.value === selected) ? selected : '';
 }
 
 function onEmojiSelectChange(prefix) {
@@ -280,78 +281,6 @@ async function deleteSnapshot(id) {
   await loadSnapshots();
 }
 
-// ── Reaction Roles ────────────────────────────────────────────────────────
-async function loadReactionRoles() {
-  const list = await api('/api/reaction-roles');
-  const el = document.getElementById('reaction-roles-list');
-  if (!list.length) { el.innerHTML = emptyState('ボタンロールはまだ設定されていません'); return; }
-  el.innerHTML = `<table>
-    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネル</th><th>メッセージID</th><th>ラベル</th><th></th></tr></thead>
-    <tbody>
-    ${list.map(r => `
-      <tr>
-        <td>${esc(r.emoji)}</td>
-        <td>${esc(roleName(r.role_id))}</td>
-        <td>${esc(channelName(r.channel_id))}</td>
-        <td class="mono">${r.message_id}</td>
-        <td>${esc(r.label || '—')}</td>
-        <td style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm" onclick="publishRoleButton('reaction', ${r.id})">ボタンを再投稿</button>
-          <button class="btn btn-ghost btn-sm" onclick="openEditRR(${JSON.stringify(r).replace(/"/g,'&quot;')})">編集</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteReactionRole(${r.id})">削除</button>
-        </td>
-      </tr>
-    `).join('')}
-    </tbody>
-  </table>`;
-}
-
-async function addReactionRole() {
-  const channel_id = document.getElementById('rr-channel').value;
-  const emoji = getEmojiValue('rr');
-  const role_id = document.getElementById('rr-role').value;
-  const label = document.getElementById('rr-label').value.trim();
-  if (!channel_id || !emoji || !role_id) {
-    toast('必須項目を入力してください', 'error'); return;
-  }
-  try {
-    await api('/api/reaction-roles', 'POST', { channel_id, emoji, role_id, label: label || null });
-    toast('追加しました', 'success');
-    document.getElementById('rr-channel').selectedIndex = 0;
-    document.getElementById('rr-emoji-select').selectedIndex = 0;
-    document.getElementById('rr-emoji-text').value = '';
-    document.getElementById('rr-emoji-text').style.display = 'none';
-    document.getElementById('rr-role').selectedIndex = 0;
-    document.getElementById('rr-label').value = '';
-    await loadReactionRoles();
-  } catch (e) {
-    toast('追加失敗: ' + e, 'error');
-  }
-}
-
-async function deleteReactionRole(id) {
-  if (!confirm('削除しますか？')) return;
-  await api(`/api/reaction-roles/${id}`, 'DELETE');
-  toast('削除しました', 'success');
-  await loadReactionRoles();
-}
-
-function openEditRR(item) {
-  editMode = 'rr';
-  editId = item.id;
-  document.getElementById('modal-title').textContent = 'ボタンロール編集（保存時に再投稿）';
-  document.getElementById('modal-sr-fields').style.display = 'none';
-  document.getElementById('modal-rr-fields').style.display = 'block';
-  document.getElementById('modal-vr-fields').style.display = 'none';
-
-  document.getElementById('modal-rr-channel').value = item.channel_id;
-  setEmojiValue('modal-rr', item.emoji);
-  document.getElementById('modal-rr-role').value = item.role_id;
-  document.getElementById('modal-rr-label').value = item.label || '';
-
-  document.getElementById('modal-overlay').classList.remove('hidden');
-}
-
 // ── Voice Roles ───────────────────────────────────────────────────────────
 async function loadVoiceRoles() {
   const list = await api('/api/voice-roles');
@@ -403,7 +332,6 @@ function openEditVR(item) {
   editMode = 'vr';
   editId = item.id;
   document.getElementById('modal-title').textContent = 'VCロール編集';
-  document.getElementById('modal-rr-fields').style.display = 'none';
   document.getElementById('modal-vr-fields').style.display = 'block';
 
   document.getElementById('modal-vr-channel').value = item.channel_id;
@@ -416,7 +344,6 @@ function openEditVR(item) {
 // ── Modal ─────────────────────────────────────────────────────────────────
 function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
-  document.getElementById('modal-sr-fields').style.display = 'none';
   editMode = null;
   editId = null;
 }
@@ -428,43 +355,18 @@ function onOverlayClick(e) {
 async function saveEdit() {
   if (!editMode || !editId) return;
   try {
-    if (editMode === 'sr') {
-      const channel_id = document.getElementById('modal-sr-channel').value;
-      const emoji = getEmojiValue('modal-sr');
-      const role_id = document.getElementById('modal-sr-role').value;
-      const label = document.getElementById('modal-sr-label').value.trim();
-      if (!channel_id || !emoji || !role_id) {
-        toast('必須項目を入力してください', 'error'); return;
-      }
-      await api(`/api/status-roles/${editId}`, 'PUT', { channel_id, emoji, role_id, label: label || null });
-      await loadStatusRoles();
-    } else if (editMode === 'rr') {
-      const channel_id = document.getElementById('modal-rr-channel').value;
-      const emoji = getEmojiValue('modal-rr');
-      const role_id = document.getElementById('modal-rr-role').value;
-      const label = document.getElementById('modal-rr-label').value.trim();
-      if (!channel_id || !emoji || !role_id) {
-        toast('必須項目を入力してください', 'error'); return;
-      }
-      await api(`/api/reaction-roles/${editId}`, 'PUT', { channel_id, emoji, role_id, label: label || null });
-      await loadReactionRoles();
-    } else {
-      const channel_id = document.getElementById('modal-vr-channel').value;
-      const role_id = document.getElementById('modal-vr-role').value;
-      const label = document.getElementById('modal-vr-label').value.trim();
-      if (!channel_id || !role_id) {
-        toast('チャンネルとロールを選択してください', 'error'); return;
-      }
-      await api(`/api/voice-roles/${editId}`, 'PUT', { channel_id, role_id, label: label || null });
-      await loadVoiceRoles();
+    const channel_id = document.getElementById('modal-vr-channel').value;
+    const role_id = document.getElementById('modal-vr-role').value;
+    const label = document.getElementById('modal-vr-label').value.trim();
+    if (!channel_id || !role_id) {
+      toast('チャンネルとロールを選択してください', 'error'); return;
     }
+    await api(`/api/voice-roles/${editId}`, 'PUT', { channel_id, role_id, label: label || null });
+    await loadVoiceRoles();
     toast('保存しました', 'success');
     closeModal();
   } catch (e) {
     toast('保存失敗: ' + e, 'error');
-    // 投稿失敗でも編集値が保存されている場合があるため一覧を更新する。
-    if (editMode === 'rr') await loadReactionRoles();
-    if (editMode === 'sr') await loadStatusRoles();
   }
 }
 
@@ -642,87 +544,25 @@ async function loadBotLogs(page) {
   `;
 }
 
-// ── Status Roles ──────────────────────────────────────────────────────────
-async function loadStatusRoles() {
-  const list = await api('/api/status-roles');
-  const el = document.getElementById('status-roles-list');
-  if (!list.length) { el.innerHTML = emptyState('ステータスロールはまだ設定されていません'); return; }
-  el.innerHTML = `<table>
-    <thead><tr><th>絵文字</th><th>ロール</th><th>チャンネル</th><th>メッセージID</th><th>ラベル</th><th></th></tr></thead>
-    <tbody>
-    ${list.map(r => `
-      <tr>
-        <td>${esc(r.emoji)}</td>
-        <td>${esc(roleName(r.role_id))}</td>
-        <td>${esc(channelName(r.channel_id))}</td>
-        <td class="mono">${r.message_id}</td>
-        <td>${esc(r.label || '—')}</td>
-        <td style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm" onclick="publishRoleButton('status', ${r.id})">ボタンを再投稿</button>
-          <button class="btn btn-ghost btn-sm" onclick="openEditSR(${JSON.stringify(r).replace(/"/g,'&quot;')})">編集</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteStatusRole(${r.id})">削除</button>
-        </td>
-      </tr>
-    `).join('')}
-    </tbody>
-  </table>`;
-}
-
-async function addStatusRole() {
-  const channel_id = document.getElementById('sr-channel').value;
-  const emoji = getEmojiValue('sr');
-  const role_id = document.getElementById('sr-role').value;
-  const label = document.getElementById('sr-label').value.trim();
-  if (!channel_id || !emoji || !role_id) {
-    toast('必須項目を入力してください', 'error'); return;
-  }
-  try {
-    await api('/api/status-roles', 'POST', { channel_id, emoji, role_id, label: label || null });
-    toast('追加しました', 'success');
-    document.getElementById('sr-channel').selectedIndex = 0;
-    document.getElementById('sr-emoji-select').selectedIndex = 0;
-    document.getElementById('sr-emoji-text').value = '';
-    document.getElementById('sr-emoji-text').style.display = 'none';
-    document.getElementById('sr-role').selectedIndex = 0;
-    document.getElementById('sr-label').value = '';
-    await loadStatusRoles();
-  } catch (e) {
-    toast('追加失敗: ' + e, 'error');
-  }
-}
-
-function openEditSR(item) {
-  editMode = 'sr';
-  editId = item.id;
-  document.getElementById('modal-title').textContent = 'ステータスロール編集（保存時に再投稿）';
-  document.getElementById('modal-rr-fields').style.display = 'none';
-  document.getElementById('modal-vr-fields').style.display = 'none';
-  document.getElementById('modal-sr-fields').style.display = 'block';
-
-  document.getElementById('modal-sr-channel').value = item.channel_id;
-  setEmojiValue('modal-sr', item.emoji);
-  document.getElementById('modal-sr-role').value = item.role_id;
-  document.getElementById('modal-sr-label').value = item.label || '';
-
-  document.getElementById('modal-overlay').classList.remove('hidden');
-}
-
-async function deleteStatusRole(id) {
-  if (!confirm('削除しますか？')) return;
-  await api(`/api/status-roles/${id}`, 'DELETE');
-  toast('削除しました', 'success');
-  await loadStatusRoles();
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────
 async function api(url, method = 'GET', body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  if (res.status === 204) return null;
-  const data = await res.json();
-  if (!res.ok) throw (data.error || res.statusText);
-  return data;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const opts = { method, headers: { 'Content-Type': 'application/json' }, signal: controller.signal };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(url, opts);
+    if (res.status === 204) return null;
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || `サーバーエラー (${res.status})。時間をおいて再試行してください。`);
+    if (data === null) throw new Error('サーバーからの応答を読み取れませんでした。画面を再読み込みしてください。');
+    return data;
+  } catch (e) {
+    if (e.name === 'AbortError' || e instanceof TypeError) {
+      throw new Error('通信結果を確認できませんでした。Discordと設定一覧を確認してから再試行してください。');
+    }
+    throw e;
+  } finally { clearTimeout(timer); }
 }
 
 function esc(str) {
@@ -745,16 +585,4 @@ function toast(msg, type = 'success') {
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3000);
-}
-
-// 既存設定の移行・投稿失敗時の再試行。再投稿後は古いボタンを使えません。
-async function publishRoleButton(kind, id) {
-  if (!confirm('操作ボタンを投稿します。以前のボタンは無効になります。続けますか？')) return;
-  try {
-    await api(`/api/${kind}-roles/${id}/publish`, 'POST');
-    toast('ボタンを投稿しました', 'success');
-    await (kind === 'reaction' ? loadReactionRoles() : loadStatusRoles());
-  } catch (e) {
-    toast('投稿失敗: ' + e, 'error');
-  }
 }

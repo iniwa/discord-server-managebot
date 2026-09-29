@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Discord Server Manager</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=role-composer-2" />
 </head>
 <body>
   <header>
@@ -18,6 +18,7 @@
     <h1>Discord Server Manager</h1>
   </header>
 
+  <div id="app-error" class="role-feedback error" role="alert" hidden>画面の処理でエラーが発生しました。入力内容を控え、ページを再読み込みしてください。<button type="button" class="btn btn-ghost btn-sm" onclick="location.reload()">再読み込み</button></div>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="reaction-roles">ボタンロール</button>
     <button class="tab-btn" data-tab="voice-roles">VCロール</button>
@@ -49,41 +50,35 @@
     </div>
   </div>
 
-  <!-- Reaction Roles Tab -->
-  <div class="tab-panel active" id="tab-reaction-roles">
-    <div class="card">
-      <div class="card-header"><h2>ボタンロール追加</h2></div>
-      <p style="margin-bottom:16px;color:var(--text-muted);">指定チャンネルに操作ボタンを投稿します。結果は押した本人だけに表示し、DMは送りません。</p>
-      <div class="form-row">
-        <div class="form-group">
-          <label>チャンネル</label>
-          <select id="rr-channel"><option value="">-- チャンネル選択 --</option></select>
-        </div>
-        <div class="form-group">
-          <label>絵文字</label>
-          <select id="rr-emoji-select" onchange="onEmojiSelectChange('rr')">
-            <option value="">-- 絵文字を選択 --</option>
-            <option value="__unicode__">📝 Unicode 絵文字を入力...</option>
-          </select>
-          <input type="text" id="rr-emoji-text" class="emoji-input-text" placeholder="😀" style="display:none;" />
-        </div>
-        <div class="form-group">
-          <label>ロール</label>
-          <select id="rr-role"><option value="">-- ロール選択 --</option></select>
-        </div>
-        <div class="form-group">
-          <label>ラベル (任意)</label>
-          <input type="text" id="rr-label" placeholder="説明" />
-        </div>
-        <button class="btn btn-primary" onclick="addReactionRole()" style="margin-bottom:0;">追加して投稿</button>
-      </div>
+  <section class="tab-panel active" id="tab-reaction-roles">
+    <div class="role-page-heading"><div><h2>ボタンロール</h2><p>押すたびにロールを付与・解除するボタンを、Discordに投稿します。</p></div><span class="badge">操作結果は本人だけに表示</span></div>
+    <div class="role-workspace">
+      <form class="card role-composer" id="rr-form" novalidate>
+        <h3 id="rr-heading">新しいボタンを作成</h3>
+        <p class="role-help">1つのボタンで1つのロールを付与・解除します。必須項目は投稿先とロールだけです。</p>
+        <div id="rr-data-status" class="role-feedback" role="status">Discordの選択肢を読み込んでいます…</div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="loadDiscordData()">選択肢を再読み込み</button>
+        <fieldset id="rr-fields" disabled>
+          <legend>1. 投稿先とロール</legend>
+          <div class="form-group"><label for="rr-channel">投稿先チャンネル <span class="required">必須</span></label><select id="rr-channel" required><option value="">チャンネルを選択</option></select></div>
+          <div class="form-group"><label for="rr-role">付与するロール <span class="required">必須</span></label><select id="rr-role" required><option value="">ロールを選択</option></select></div>
+          <h4>2. 投稿メッセージとボタン</h4>
+          <div class="form-group"><label for="rr-content">投稿メッセージ <span>任意・2000文字以内</span></label><textarea id="rr-content" rows="5" maxlength="2000" placeholder="例: 通知を受け取りたい方は、下のボタンを押してください。"></textarea><small>空欄なら標準の案内文を使います。@everyoneなどを書いても通知は送りません。</small></div>
+          <div class="form-group"><label for="rr-label">ボタン名 <span>任意</span></label><input type="text" id="rr-label" maxlength="80" placeholder="空欄ならロール名" /></div>
+          <div class="form-group"><label for="rr-emoji-select">絵文字 <span>任意</span></label><select id="rr-emoji-select" onchange="onEmojiSelectChange('rr')"><option value="">絵文字なし</option><option value="__unicode__">絵文字を入力する</option></select><input type="text" id="rr-emoji-text" aria-label="絵文字を入力" placeholder="例: 🎮" style="display:none;" /></div>
+        </fieldset>
+        <div id="rr-feedback" class="role-feedback" role="status" aria-live="polite" hidden></div>
+        <div class="role-actions"><button class="btn btn-primary" id="rr-submit" type="submit" disabled>Discordに投稿する</button><button class="btn btn-ghost" id="rr-cancel" type="button" hidden>編集をやめる</button></div>
+        <p class="role-help" id="rr-edit-note" hidden>保存すると新しい投稿を作成します。以前のボタンは無効になります。</p>
+      </form>
+      <aside class="card role-preview" aria-label="Discord投稿プレビュー">
+        <h3>3. 投稿イメージ</h3><p class="role-preview-channel" id="rr-preview-channel"># 投稿先を選択してください</p>
+        <div class="discord-preview"><span class="badge">BOT</span><p id="rr-preview-content">ボタンでロールの付与・解除を切り替えます。操作結果はあなただけに表示されます。</p><span class="discord-button" id="rr-preview-button">ロールを選択してください</span></div>
+        <p class="role-help">プレビューは操作できません。投稿後、Discord上のボタンでロールを切り替えます。DMは送りません。</p>
+      </aside>
     </div>
-    <div class="card">
-      <h2 style="margin-bottom:16px;">設定一覧</h2>
-      <p style="margin-bottom:12px;color:var(--text-muted);">既存のリアクション設定は「ボタンを再投稿」で移行できます。編集保存・再投稿後は以前のボタンが無効になります。</p>
-      <div id="reaction-roles-list"></div>
-    </div>
-  </div>
+    <div class="card"><div class="card-header"><h2>保存済みの設定</h2><button type="button" class="btn btn-ghost btn-sm" onclick="loadRoleButtons('rr')">一覧を更新</button></div><p class="role-help">既存のリアクション設定は「ボタンを投稿し直す」で移行できます。元の投稿は残ります。</p><div id="reaction-roles-list" class="role-list" aria-live="polite"></div></div>
+  </section>
 
   <!-- Voice Roles Tab -->
   <div class="tab-panel" id="tab-voice-roles">
@@ -163,47 +158,35 @@
     </div>
   </div>
 
-  <!-- Status Roles Tab -->
-  <div class="tab-panel" id="tab-status-roles">
-    <div class="card">
-      <div class="card-header"><h2>ステータスロール追加</h2></div>
-      <p style="margin-bottom:16px;color:var(--text-muted);font-size:13px;">
-        📌 ボタンでロールを付与・解除します。操作結果は本人だけに表示します。<strong>通話から完全退出すると自動的にロールが外れます。</strong>サーバーオーナーも利用可能です。
-      </p>
-      <div class="form-row">
-        <div class="form-group">
-          <label>チャンネル</label>
-          <select id="sr-channel"><option value="">-- チャンネル選択 --</option></select>
-        </div>
-        <div class="form-group">
-          <label>絵文字</label>
-          <select id="sr-emoji-select" onchange="onEmojiSelectChange('sr')">
-            <option value="">-- 絵文字を選択 --</option>
-            <option value="__unicode__">📝 Unicode 絵文字を入力...</option>
-          </select>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <input type="text" id="sr-emoji-text" class="emoji-input-text" placeholder="😀" style="display:none;" />
-            <button type="button" class="btn btn-ghost btn-sm" id="sr-emoji-picker-btn" onclick="toggleEmojiPicker('sr')" style="display:none;">よく使う絵文字 ▾</button>
-          </div>
-          <div id="sr-emoji-picker" class="emoji-picker" style="display:none;"></div>
-        </div>
-        <div class="form-group">
-          <label>付与するロール</label>
-          <select id="sr-role"><option value="">-- ロール選択 --</option></select>
-        </div>
-        <div class="form-group">
-          <label>ラベル (任意)</label>
-          <input type="text" id="sr-label" placeholder="例: ゲーム中" />
-        </div>
-        <button class="btn btn-primary" onclick="addStatusRole()" style="margin-bottom:0;">追加して投稿</button>
-      </div>
+  <section class="tab-panel" id="tab-status-roles">
+    <div class="role-page-heading"><div><h2>通話中のボタンロール</h2><p>通話中だけ付与でき、通話から完全退出すると自動で外れるロールです。</p></div><span class="badge">操作結果は本人だけに表示</span></div>
+    <div class="role-workspace">
+      <form class="card role-composer" id="sr-form" novalidate>
+        <h3 id="sr-heading">新しいボタンを作成</h3>
+        <p class="role-help">1つのボタンで1つのロールを付与・解除します。必須項目は投稿先とロールだけです。</p>
+        <div id="sr-data-status" class="role-feedback" role="status">Discordの選択肢を読み込んでいます…</div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="loadDiscordData()">選択肢を再読み込み</button>
+        <fieldset id="sr-fields" disabled>
+          <legend>1. 投稿先とロール</legend>
+          <div class="form-group"><label for="sr-channel">投稿先チャンネル <span class="required">必須</span></label><select id="sr-channel" required><option value="">チャンネルを選択</option></select></div>
+          <div class="form-group"><label for="sr-role">付与するロール <span class="required">必須</span></label><select id="sr-role" required><option value="">ロールを選択</option></select></div>
+          <h4>2. 投稿メッセージとボタン</h4>
+          <div class="form-group"><label for="sr-content">投稿メッセージ <span>任意・2000文字以内</span></label><textarea id="sr-content" rows="5" maxlength="2000" placeholder="例: 通知を受け取りたい方は、下のボタンを押してください。"></textarea><small>空欄なら標準の案内文を使います。@everyoneなどを書いても通知は送りません。</small></div>
+          <div class="form-group"><label for="sr-label">ボタン名 <span>任意</span></label><input type="text" id="sr-label" maxlength="80" placeholder="空欄ならロール名" /></div>
+          <div class="form-group"><label for="sr-emoji-select">絵文字 <span>任意</span></label><select id="sr-emoji-select" onchange="onEmojiSelectChange('sr')"><option value="">絵文字なし</option><option value="__unicode__">絵文字を入力する</option></select><input type="text" id="sr-emoji-text" aria-label="絵文字を入力" placeholder="例: 🎮" style="display:none;" /></div>
+        </fieldset>
+        <div id="sr-feedback" class="role-feedback" role="status" aria-live="polite" hidden></div>
+        <div class="role-actions"><button class="btn btn-primary" id="sr-submit" type="submit" disabled>Discordに投稿する</button><button class="btn btn-ghost" id="sr-cancel" type="button" hidden>編集をやめる</button></div>
+        <p class="role-help" id="sr-edit-note" hidden>保存すると新しい投稿を作成します。以前のボタンは無効になります。</p>
+      </form>
+      <aside class="card role-preview" aria-label="Discord投稿プレビュー">
+        <h3>3. 投稿イメージ</h3><p class="role-preview-channel" id="sr-preview-channel"># 投稿先を選択してください</p>
+        <div class="discord-preview"><span class="badge">BOT</span><p id="sr-preview-content">ボタンでステータスロールを切り替えます。付与はVC参加中のみ可能で、VC退出時に自動解除されます。操作結果はあなただけに表示されます。</p><span class="discord-button" id="sr-preview-button">ロールを選択してください</span></div>
+        <p class="role-help">プレビューは操作できません。投稿後、Discord上のボタンでロールを切り替えます。DMは送りません。</p>
+      </aside>
     </div>
-    <div class="card">
-      <h2 style="margin-bottom:16px;">設定一覧</h2>
-      <p style="margin-bottom:12px;color:var(--text-muted);">既存設定は「ボタンを再投稿」で移行できます。編集保存・再投稿後は以前のボタンが無効になります。</p>
-      <div id="status-roles-list"></div>
-    </div>
-  </div>
+    <div class="card"><div class="card-header"><h2>保存済みの設定</h2><button type="button" class="btn btn-ghost btn-sm" onclick="loadRoleButtons('sr')">一覧を更新</button></div><p class="role-help">既存のリアクション設定は「ボタンを投稿し直す」で移行できます。元の投稿は残ります。</p><div id="status-roles-list" class="role-list" aria-live="polite"></div></div>
+  </section>
 
   <!-- ── Edit Modal ──────────────────────────────────────────────────────── -->
   <div class="modal-overlay hidden" id="modal-overlay" onclick="onOverlayClick(event)">
@@ -213,58 +196,6 @@
         <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
       </div>
       <div class="modal-body">
-
-        <!-- Reaction Role edit fields -->
-        <div id="modal-rr-fields">
-          <div class="form-group" style="margin-bottom:10px;">
-            <label>チャンネル</label>
-            <select id="modal-rr-channel"><option value="">-- チャンネル選択 --</option></select>
-          </div>
-          <div class="form-group" style="margin-bottom:10px;">
-            <label>絵文字</label>
-            <select id="modal-rr-emoji-select" onchange="onEmojiSelectChange('modal-rr')">
-              <option value="">-- 絵文字を選択 --</option>
-              <option value="__unicode__">📝 Unicode 絵文字を入力...</option>
-            </select>
-            <input type="text" id="modal-rr-emoji-text" class="emoji-input-text" placeholder="😀" style="display:none;" />
-          </div>
-          <div class="form-group" style="margin-bottom:10px;">
-            <label>ロール</label>
-            <select id="modal-rr-role"><option value="">-- ロール選択 --</option></select>
-          </div>
-          <div class="form-group">
-            <label>ラベル (任意)</label>
-            <input type="text" id="modal-rr-label" placeholder="説明" />
-          </div>
-        </div>
-
-        <!-- Status Role edit fields -->
-        <div id="modal-sr-fields" style="display:none;">
-          <div class="form-group" style="margin-bottom:10px;">
-            <label>チャンネル</label>
-            <select id="modal-sr-channel"><option value="">-- チャンネル選択 --</option></select>
-          </div>
-          <div class="form-group" style="margin-bottom:10px;">
-            <label>絵文字</label>
-            <select id="modal-sr-emoji-select" onchange="onEmojiSelectChange('modal-sr')">
-              <option value="">-- 絵文字を選択 --</option>
-              <option value="__unicode__">📝 Unicode 絵文字を入力...</option>
-            </select>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <input type="text" id="modal-sr-emoji-text" class="emoji-input-text" placeholder="😀" style="display:none;" />
-              <button type="button" class="btn btn-ghost btn-sm" id="modal-sr-emoji-picker-btn" onclick="toggleEmojiPicker('modal-sr')" style="display:none;">よく使う絵文字 ▾</button>
-            </div>
-            <div id="modal-sr-emoji-picker" class="emoji-picker" style="display:none;"></div>
-          </div>
-          <div class="form-group" style="margin-bottom:10px;">
-            <label>付与するロール</label>
-            <select id="modal-sr-role"><option value="">-- ロール選択 --</option></select>
-          </div>
-          <div class="form-group">
-            <label>ラベル (任意)</label>
-            <input type="text" id="modal-sr-label" placeholder="例: ゲーム中" />
-          </div>
-        </div>
 
         <!-- Voice Role edit fields -->
         <div id="modal-vr-fields" style="display:none;">
@@ -290,6 +221,11 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script>
+    window.addEventListener('error', () => { document.getElementById('app-error').hidden = false; });
+    window.addEventListener('unhandledrejection', () => { document.getElementById('app-error').hidden = false; });
+  </script>
+  <script src="app.js?v=role-composer-2"></script>
+  <script src="button-roles.js?v=role-composer-2"></script>
 </body>
 </html>

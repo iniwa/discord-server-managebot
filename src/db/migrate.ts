@@ -96,6 +96,9 @@ export function runMigrations(db: Database.Database): void {
       if (!columns.some((column) => column.name === 'dm_on_add')) {
         db.exec(`ALTER TABLE ${table} ADD COLUMN dm_on_add INTEGER NOT NULL DEFAULT 1 CHECK (dm_on_add IN (0, 1))`);
       }
+      if (!columns.some((column) => column.name === 'message_content')) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN message_content TEXT`);
+      }
     }
   })();
 }
